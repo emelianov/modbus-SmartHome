@@ -1,0 +1,212 @@
+<html><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>ESP8266 WIFI Multi-Relay Board Control Page - 1-Wire</title>
+<link rel='stylesheet' href='http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css'>
+<style>
+body{padding-top:25px;padding-bottom:20px}
+.header{border-bottom:1px solid #e5e5e5;margin-bottom:0;color:#D4AC0D} 
+.jumbotron{text-align:center}
+.marketing{margin:40px 0} 
+.arduino h4{font-size:22px;color:#2ecc71;margin-top:20px;padding-right:10px;padding-left:0; display:inline-block;} 
+.arduino h5{font-size:16px;color:#E74C3C;margin-top:15px;padding-right:0;padding-left:0px; display:inline-block;} 
+.arduino h6{font-size:16px;color:#2ecc71;margin-top:15px;padding-right:0;padding-left:0px; display:inline-block;} 
+.clear{ clear:both;} 
+.align-center {text-align:center;}
+table{width:80%; border-spacing:0px 1px; margin:0 0px 0px 0;border-top:1px solid #EEE;padding: 0 5px 0 0px;text-align:center;}
+.odd{background-color:#F0F0F0;}
+</style>
+
+<script>
+
+function reloadCallback(unused) {
+	location.reload();
+}
+
+function jsonNames() {
+	json = {'pin' : parseInt(document.getElementById("pin").value),
+		'interval' : 	parseInt(document.getElementById("interval").value),
+		'sensors' : []
+		};
+	source = document.getElementsByName('NAME');
+	source.forEach(function(field) {
+		json.sensors.push({'address' : field.id, 'name' : field.value });
+	});
+	return JSON.stringify(json);
+}
+
+function getFromServer(url, doneCallback) {
+    var xhr;
+    xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = handleStateChange;
+    xhr.open('GET', url, true);
+    xhr.send();
+    function handleStateChange() {
+        if (xhr.readyState === 4) {
+            doneCallback(xhr.status == 200 ? xhr.responseText : null);
+        }
+    }
+}
+
+function printList(jsonString) {
+	json = JSON.parse(jsonString);
+	document.getElementById("pin").value = json.pin;
+	document.getElementById("interval").value = json.interval;
+	target = document.getElementById('list');
+	table = document.createElement('table');
+	header = table.createTHead();
+	tr = header.insertRow(0)
+	tr.className = "odd";
+	td = tr.insertCell(-1);
+	td.innerHTML = 'Name';
+	td = tr.insertCell(-1);
+	td.innerHTML = 'Address';
+	td = tr.insertCell(-1);
+	td.innerHTML = 'T (C)';
+	td = tr.insertCell(-1);
+	td.innerHTML = 'T (F)';
+	td = tr.insertCell(-1);
+	td.innerHTML = 'Live';
+	td = tr.insertCell(-1);
+	td.innerHTML = 'Action';
+	td = tr.insertCell(-1);
+	td.innerHTML = 'AF mode';
+	td = tr.insertCell(-1);
+	td.innerHTML = 'Target';
+	json.sensors.forEach(function(entry) {
+		if (entry.address != 0) {
+			tr = table.insertRow(-1);
+			td = tr.insertCell(-1);
+			input = document.createElement('input');
+			input.type = "text";
+			input.id = entry.address;
+			input.value = entry.name;
+			input.size = 32;
+			input.maxLength = 32;
+			input.name = "NAME";
+			td.appendChild(input);
+			td = tr.insertCell(-1);
+			td.innerHTML = entry.address;
+			td = tr.insertCell(-1);
+			td.innerHTML = entry.C;
+			td = tr.insertCell(-1);
+			td.innerHTML = Math.round(entry.C * 1.8 + 32 * 100) / 100;
+			td = tr.insertCell(-1);
+			input = document.createElement('input');
+			input.readOnly = true;
+			input.type = 'checkbox';
+			td.appendChild(input);
+			td = tr.insertCell(-1);
+			if (entry.seen > 0) {
+				input.checked = true;
+				td.innerHTML = 'Delete';
+				td.style.color = 'gray';
+			} else {
+				input.checked = false;
+				a = document.createElement('a');
+				a.innerHTML = 'Delete';
+				a.href = "javascript:getFromServer('1wiredelete?address=" + entry.address + "', reloadCallback);"
+				td.appendChild(a);
+			}
+			td = tr.insertCell(-1);
+			select = document.createElement('select');
+			option = document.createElement('option');
+			option.text = 0;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 1;
+			select.add(option);
+			select.value = entry.AF;
+			td.appendChild(select);
+			td = tr.insertCell(-1);
+
+			select = document.createElement('select');
+			option = document.createElement('option');
+			option.text = 'None';
+			option.value = -1;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO0';
+			option.value = 0;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO2';
+			option.value = 2;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO4';
+			option.value = 4;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO5';
+			option.value = 5;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO9';
+			option.value = 9;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO10';
+			option.value = 10;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO12';
+			option.value = 12;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO13';
+			option.value = 13;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO14';
+			option.value = 14;
+			select.add(option);
+			option = document.createElement('option');
+			option.text = 'GPIO15';
+			option.value = 15;
+			select.add(option);
+			select.value = entry.pin;
+			td.appendChild(select);
+		}
+	});
+	document.getElementById('list').appendChild(table);
+	button = document.createElement('input');
+	button.type = 'button';
+	button.value = 'Save';
+	button.onclick = function() { getFromServer('1wiremodify?json=' + jsonNames(), reloadCallback); };
+	document.getElementById('save').appendChild(button);
+}
+
+</script>
+</head><body style='background-color:#E8F8F5' onLoad="getFromServer('/wire', printList);">
+<div class='container align-center'>
+<div class="header"><h1>1-Wire Configuration</h1></div>
+<div class='clear'>&nbsp;</div>
+<div class='row arduino'> <div class='col-lg-12'>
+<div id="list"></div>
+<div class='clear'>&nbsp;</div>
+<div>
+1-Wire connected to <select id="pin">
+<option value=0>GPIO0</option>
+<option value=2>GPIO2</option>
+<option value=4>GPIO4</option>
+<option value=5>GPIO5</option>
+<option value=9>GPIO9</option>
+<option value=10>GPIO10</option>
+<option value=12>GPIO12</option>
+<option value=13>GPIO13</option>
+<option value=14>GPIO14</option>
+<option value=15>GPIO15</option>
+</select>
+<br>
+<h5>(changing will take effect on next board reboot)</h5>
+</div>
+<div class='clear'>&nbsp;</div>
+<div>
+Query interval (sec.)<input id="interval"> 
+</div>
+<div class='clear'>&nbsp;</div>
+<div id="save"></div>
+</div>
+</div>
+</body>
+</html>
