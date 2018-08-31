@@ -1,6 +1,8 @@
-<html><head><meta charset='utf-8'>
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
-<title>ESP8266 WIFI Multi-Relay Board Control Page - 1-Wire</title>
+<title>ESP8266 Modbus T - 1-Wire</title>
 <link rel='stylesheet' href='http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css'>
 <style>
 body{padding-top:25px;padding-bottom:20px}
@@ -23,13 +25,15 @@ function reloadCallback(unused) {
 }
 
 function jsonNames() {
-	json = {'pin' : parseInt(document.getElementById("pin").value),
-		'interval' : 	parseInt(document.getElementById("interval").value),
+	json = {'pin' : parseInt(document.getElementById('pin').value),
+		'interval' : 	parseInt(document.getElementById('interval').value),
 		'sensors' : []
 		};
 	source = document.getElementsByName('NAME');
 	source.forEach(function(field) {
-		json.sensors.push({'address' : field.id, 'name' : field.value });
+		var regObj = document.getElementById('REG' + field.id);
+		alert(regObj.id);
+		json.sensors.push({'address' : field.id, 'name' : field.value, 'pin' : parseInt(regObj.options[regObj.selectedIndex].value) });
 	});
 	return JSON.stringify(json);
 }
@@ -124,47 +128,14 @@ function printList(jsonString) {
 			option.text = 'None';
 			option.value = -1;
 			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO0';
-			option.value = 0;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO2';
-			option.value = 2;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO4';
-			option.value = 4;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO5';
-			option.value = 5;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO9';
-			option.value = 9;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO10';
-			option.value = 10;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO12';
-			option.value = 12;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO13';
-			option.value = 13;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO14';
-			option.value = 14;
-			select.add(option);
-			option = document.createElement('option');
-			option.text = 'GPIO15';
-			option.value = 15;
-			select.add(option);
+			for (i = 0; i < 10; i++) {
+				option = document.createElement('option');
+				option.text = 'IREG' + i;
+				option.value = i;
+				select.add(option);
+			}
 			select.value = entry.pin;
+			select.id = 'REG' + entry.address;
 			td.appendChild(select);
 		}
 	});

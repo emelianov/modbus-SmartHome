@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////
-// ESP8266/ESP32 Relay Module
+// ESP8266/ESP32 Modbus Temperature sensor
 // (c)2018, a.m.emelianov@gmail.com
 //
 
@@ -9,7 +9,7 @@
 #define DEFAULT_PASSWORD "P@ssw0rd"
 #define DEVICE_INTERVAL 10000
 
- #define OW_PIN D2
+#define OW_PIN D2
 
 String sysName = DEFAULT_NAME;
 String sysPassword = DEFAULT_PASSWORD;
@@ -33,7 +33,7 @@ struct sensor {
   float         Ct;       // Hysteresis base
   float         H;        // Hysteresis delta
   bool          AF;       // Hysteresis mode
-  int16_t       pin;      // Affecred PIN
+  int16_t       pin;      // Affected PIN
   uint32_t      age;      // Last success quiry time
   String addressToString() {
     char szRet[24];
@@ -286,7 +286,7 @@ void jsonWire() {
     }
     cJSON_Delete(root);
   }
-  server->send(500, "text/plain", "Error");
+  server->send_P(500, "text/plain", PSTR("Error"));
 }
 
 // Convert F to C
@@ -326,176 +326,101 @@ int16_t getSensorFromURL() {
   return i;
 }
 
-// Respond read temperature query
-void http1WireRead() {
-  server->sendHeader("Connection", "close");
-  server->sendHeader("Cache-Control", "no-store, must-revalidate");
-Serial.println(ESP.getFreeHeap());
-  String reply = "";
-  uint8_t i = getSensorFromURL();
-  if (i == -1) return;
-  reply += sysName + ", " + sens[i].name;
-  reply = "Confirmation, " + reply + ", tf=" + String(CtoF(sens[i].C)) + ", tc=" + String(sens[i].C);
-  server->send(200, "text/plain", reply);
-}
-
-// Respond change sensor settings query
-void http1WireSet() {
-  server->sendHeader("Connection", "close");
-  server->sendHeader("Cache-Control", "no-store, must-revalidate");
-
-  String reply = "";
-  double thf = DEVICE_DISCONNECTED_F, thc = DEVICE_DISCONNECTED_C, hyst = DEVICE_DISCONNECTED_C;
-
-  uint8_t i = getSensorFromURL();
-  if (i == -1) return;
-  reply += sysName + ", " + sens[i].name;
-
-  if (server->hasArg("thf") && server->hasArg("thc")) {
-    server->send(409, "text/plain", "Error - Wrong parameters");
-    return;          
-  }
-  if (server->hasArg("thf")) {
-    thf = atof(server->arg("thf").c_str());
-    sens[i].Ct = FtoC(thf);
-    reply += ", thf=" + String(thf);
-    if (server->hasArg("hyst")) {
-      hyst = atof(server->arg("hyst").c_str());
-      sens[i].H = FtoC(hyst);
-      reply += ", hyst=" + String(hyst);
-    }
-  }
-  if (server->hasArg("thc")) {
-    thc = atof(server->arg("thc").c_str());
-    sens[i].Ct = thc;
-    reply += ", thc=" + String(thc);
-    if (server->hasArg("hyst")) {
-      hyst = atof(server->arg("hyst").c_str());
-      sens[i].H = hyst;
-      reply += ", hyst=" + String(hyst);
-    }
-  }
-  reply = "Confirmation, " + reply;
-  saveSensors();
-  server->send(200, "text/plain", reply);
-}
-
-// Respond delete sensor query
-// 1wiredelete?address=1122334455667788
-void http1WireDelete() {
-  server->sendHeader("Connection", "close");
-  server->sendHeader("Cache-Control", "no-store, must-revalidate");
-  if (!server->hasArg("address")) {
-    server->send(500, "text/plain", "Error - Wrong parameters");
-    return;
-  }
-  uint8_t i;
-  sensor s;
-  s.addressFromString(server->arg("address"));
-  for (i = 0; i < DEVICE_MAX_COUNT && !(memcmp(sens[i].device, s.device, sizeof(DeviceAddress)) == 0); i++) {
-    //Nothing
-  }
-  if (i >= DEVICE_MAX_COUNT) {
-    server->send(403, "text/plain", "Error - Not found");
-    return;    
-  }
-  memset(sens[i].device, 0, sizeof(DeviceAddress));    //Fill device id with 0
-  saveSensors();
-  server->send(200, "text/plain", "Confirmation - Ok");
-}
-
 // Respond modify sensor name query
 // 1wiremodify?json={[{{address=1122334455667788},{name="new name"}},{...}]}
 void http1WireModify() {
+  cJSON* root = nullptr;
+  cJSON* entry = nullptr;
+  cJSON* item = nullptr;
+  cJSON* json = nullptr;
+  String name = "";
+  bool          AF = false;       // Hysteresis mode
+  int16_t       pin = 0;      // Affected PIN
   server->sendHeader("Connection", "close");
   server->sendHeader("Cache-Control", "no-store, must-revalidate");
   if (!server->hasArg("json")) {
-    server->send(500, "text/plain", "Error - Wrong parameters");
-    return;
+    server->send_P(500, "text/plain", PSTR("Error - Wrong parameters"));
+    goto cleanup;
   }
-  cJSON* root = cJSON_Parse(server->urlDecode(server->arg("json")).c_str());
+  root = cJSON_Parse(server->urlDecode(server->arg("json")).c_str());
+  if (!root) {
+    server->send_P(500, "text/plain", PSTR("Error - Wrong parameters"));
+    goto cleanup;
+  }
   Serial.println(server->urlDecode(server->arg("json")));
-  cJSON* entry;
-  cJSON* item;
-  cJSON* json = NULL;
-  String name;
-  bool          AF;       // Hysteresis mode
-  int16_t       pin;      // Affected PIN
-  if (root) {
-    if (cJSON_HasObjectItem(root, "pin")) {
-      item = cJSON_GetObjectItemCaseSensitive(root, "pin");
-      if (item && cJSON_IsNumber(item))
-        oneWirePin = item->valuedouble;
-    }
-    if (cJSON_HasObjectItem(root, "interval")) {
-      item = cJSON_GetObjectItemCaseSensitive(root, "interval");
-      Serial.println(100);
-      if (item && cJSON_IsNumber(item)) {
-        //Serial.println(item->valuedouble);
-        queryInterval = item->valuedouble - DEVICE_RESPONSE_WAIT;
-      }
-    }
-    if (cJSON_HasObjectItem(root, "sensors")) json = cJSON_GetObjectItem(root, "sensors");
-      if (json) {
-        cJSON_ArrayForEach(entry, json) {
-          item = cJSON_GetObjectItemCaseSensitive(entry, "address");
-          if (!item || !cJSON_IsString(item))
-            continue;
-          uint8_t i;
-          sensor s;
-          s.addressFromString(item->valuestring);
-          for (i = 0; i < DEVICE_MAX_COUNT && !(memcmp(sens[i].device, s.device, sizeof(DeviceAddress)) == 0); i++) {
-            //Nothing
-            //Serial.println(item->valuestring);
-            //Serial.println(s.addressToString());
-            //Serial.println(sens[i].addressToString());
-          }
-          Serial.println();
-          if (i >= DEVICE_MAX_COUNT) {
-            server->send(403, "text/plain", "Error - Not found");
-            return;    
-          }
-          name = sens[i].name;
-          AF = sens[i].AF;
-          pin = sens[i].pin;
-          item = cJSON_GetObjectItemCaseSensitive(entry, "name");
-          if (item || cJSON_IsString(item))
-            name = item->valuestring;
-          item = cJSON_GetObjectItemCaseSensitive(entry, "AF");
-          if (item || cJSON_IsNumber(item))
-            AF = item->valuedouble;
-          item = cJSON_GetObjectItemCaseSensitive(entry, "pin");
-          if (item || cJSON_IsNumber(item))
-           pin = item->valuedouble;
-          sens[i].name = name;
-          sens[i].AF = AF;
-          sens[i].pin = pin;
-        }
-      //cJSON_Delete(json);
-          saveSensors();
-          server->send(200, "text/plain", "Confirmation - Ok");
-      }
+  if (cJSON_HasObjectItem(root, "pin")) { // Assing 1-Wire pin
+    item = cJSON_GetObjectItemCaseSensitive(root, "pin");
+    if (item && cJSON_IsNumber(item)) oneWirePin = item->valuedouble;
   }
-  cJSON_Delete(root);
+  if (cJSON_HasObjectItem(root, "interval")) {  // Set query interval
+    item = cJSON_GetObjectItemCaseSensitive(root, "interval");
+    if (item && cJSON_IsNumber(item)) queryInterval = item->valuedouble - DEVICE_RESPONSE_WAIT;
+  }
+  if (cJSON_HasObjectItem(root, "delete")) {  // Delete sensor
+    item = cJSON_GetObjectItemCaseSensitive(root, "delete");
+    if (item && cJSON_IsString(item)) {
+       //= item->valuestring;
+    }
+  }
+  if (cJSON_HasObjectItem(root, "sensors")) json = cJSON_GetObjectItem(root, "sensors");
+    if (json) {
+      cJSON_ArrayForEach(entry, json) {
+        item = cJSON_GetObjectItemCaseSensitive(entry, "address");
+        if (!item || !cJSON_IsString(item))
+          continue;
+        uint8_t i;
+        sensor s;
+        s.addressFromString(item->valuestring);
+        for (i = 0; i < DEVICE_MAX_COUNT && !(memcmp(sens[i].device, s.device, sizeof(DeviceAddress)) == 0); i++) {
+          //Nothing
+          //Serial.println(item->valuestring);
+          //Serial.println(s.addressToString());
+          //Serial.println(sens[i].addressToString());
+        }
+        Serial.println();
+        if (i >= DEVICE_MAX_COUNT) {
+          server->send(403, "text/plain", "Error - Not found");
+          goto cleanup;
+        }
+        name = sens[i].name;
+        AF = sens[i].AF;
+        pin = sens[i].pin;
+        item = cJSON_GetObjectItemCaseSensitive(entry, "name");
+        if (item || cJSON_IsString(item)) name = item->valuestring;
+        item = cJSON_GetObjectItemCaseSensitive(entry, "AF");
+        if (item || cJSON_IsNumber(item)) AF = item->valuedouble;
+        item = cJSON_GetObjectItemCaseSensitive(entry, "pin");
+        if (item || cJSON_IsNumber(item)) pin = item->valuedouble;
+        sens[i].name = name;
+        sens[i].AF = AF;
+        sens[i].pin = pin;
+      }
+    //cJSON_Delete(json);
+      saveSensors();
+      server->send(200, "text/plain", "Confirmation - Ok");
+    }
+  cleanup:
+  if (root) cJSON_Delete(root);
+  return;
 }
 
-  bool handleFileRead(String path){
-    if(path.endsWith("/")) path += "index.html";
-    String contentType = StaticRequestHandler::getContentType(path);
-    String pathWithGz = path + ".gz";
-    if(SPIFFS.exists(pathWithGz))
-      path += ".gz";
-    if(SPIFFS.exists(path)){
-      server->sendHeader("Connection", "close");
-      server->sendHeader("Cache-Control", "no-store, must-revalidate");
-      server->sendHeader("Access-Control-Allow-Origin", "*");
-      File file = SPIFFS.open(path, "r");
-      size_t sent = server->streamFile(file, contentType);
-      file.close();
-      return true;
-    }
-    return false;
+bool handleFileRead(String path){
+  if(path.endsWith("/")) path += "index.html";
+  String contentType = StaticRequestHandler::getContentType(path);
+  String pathWithGz = path + ".gz";
+  if(SPIFFS.exists(pathWithGz))
+    path += ".gz";
+  if(SPIFFS.exists(path)){
+    server->sendHeader("Connection", "close");
+    server->sendHeader("Cache-Control", "no-store, must-revalidate");
+    server->sendHeader("Access-Control-Allow-Origin", "*");
+    File file = SPIFFS.open(path, "r");
+    size_t sent = server->streamFile(file, contentType);
+    file.close();
+    return true;
   }
+  return false;
+}
 
 void handleGenericFile() {
   if(!handleFileRead(server->uri()))
@@ -519,9 +444,6 @@ uint32_t dsInit() {
   }
   Serial.println("bus scanned");
   server->on("/wire", jsonWire);
-  server->on("/1wireread", http1WireRead);
-  server->on("/1wireset", http1WireSet);
-  server->on("/1wiredelete", http1WireDelete);
   server->on("/1wiremodify", http1WireModify);
   server->onNotFound(handleGenericFile);
   Serial.println("web inited");

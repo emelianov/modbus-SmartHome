@@ -1,11 +1,12 @@
 ////////////////////////////////////////
-// ESP8266/ESP32 Relay Module
+// ESP8266/ESP32 Temperature sensor
 // (c)2018, a.m.emelianov@gmail.com
 //
 
 #define BUSY ;
 #define IDLE ;
 #define VERSION "0.1"
+#define TDEBUG(...) Serial.printf(##__VA_ARGS__);
 
 extern String sysName;
 
@@ -15,10 +16,12 @@ extern String sysName;
 
 void setup(void)
 {
+ #ifdef TDEBUG
  #ifdef ESP8266
   Serial.begin(74880);
  #else
   Serial.begin(115200);
+ #endif
  #endif
   wifiInit();    // Connect to WiFi network & Start discovery services
   webInit();     // Start Web-server
