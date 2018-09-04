@@ -32,7 +32,6 @@ function jsonNames() {
 	source = document.getElementsByName('NAME');
 	source.forEach(function(field) {
 		var regObj = document.getElementById('REG' + field.id);
-		alert(regObj.id);
 		json.sensors.push({'address' : field.id, 'name' : field.value, 'pin' : parseInt(regObj.options[regObj.selectedIndex].value) });
 	});
 	return JSON.stringify(json);
@@ -67,9 +66,7 @@ function printList(jsonString) {
 	td = tr.insertCell(-1);
 	td.innerHTML = 'T (C)';
 	td = tr.insertCell(-1);
-	td.innerHTML = 'T (F)';
-	td = tr.insertCell(-1);
-	td.innerHTML = 'Live';
+	td.innerHTML = 'Alive';
 	td = tr.insertCell(-1);
 	td.innerHTML = 'Action';
 	td = tr.insertCell(-1);
@@ -93,10 +90,8 @@ function printList(jsonString) {
 			td = tr.insertCell(-1);
 			td.innerHTML = entry.C;
 			td = tr.insertCell(-1);
-			td.innerHTML = Math.round(entry.C * 1.8 + 32 * 100) / 100;
-			td = tr.insertCell(-1);
 			input = document.createElement('input');
-			input.readOnly = true;
+			input.disabled = true;
 			input.type = 'checkbox';
 			td.appendChild(input);
 			td = tr.insertCell(-1);

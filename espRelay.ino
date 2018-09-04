@@ -10,9 +10,13 @@
 
 extern String sysName;
 
+#include <ModbusIP_ESP8266.h>
 #include "wifi.h"
 #include "web.h"
+#include "mb.h"
 #include "ds1820.h"
+
+ModbusIP* mb;
 
 void setup(void)
 {
@@ -25,10 +29,12 @@ void setup(void)
  #endif
   wifiInit();    // Connect to WiFi network & Start discovery services
   webInit();     // Start Web-server
+  modbusInit();
   taskAdd(dsInit);      // Start 1-Wire temperature sensors
 }
 
 void loop() {
+  //if (taskExists(dsInit)) { Serial.print("!!! "); Serial.println(taskRemainder(dsInit));} 
   taskExec();
   yield();
 }

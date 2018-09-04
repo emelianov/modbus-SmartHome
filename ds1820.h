@@ -5,21 +5,15 @@
 
 #pragma once
 
-#define DEFAULT_NAME "MR1"
-#define DEFAULT_PASSWORD "P@ssw0rd"
 #define DEVICE_INTERVAL 10000
 
 #define OW_PIN D2
-
-String sysName = DEFAULT_NAME;
-String sysPassword = DEFAULT_PASSWORD;
 
 #include <FS.h>
 #include <Run.h>
 #define CJSON_NESTING_LIMIT 10
 #include <cJSON.h>
 #include <DallasTemperature.h>
-#include <detail/RequestHandlersImpl.h> // for StaticRequestHandler::getContentType(path);
 
 #define DEVICE_RESPONSE_WAIT 250
 
@@ -29,12 +23,12 @@ String sysPassword = DEFAULT_PASSWORD;
 struct sensor {
   DeviceAddress device;
   String        name;
-  float         C;        // Last temperature query result
+  float         C = DEVICE_DISCONNECTED_C;        // Last temperature query result
   float         Ct;       // Hysteresis base
   float         H;        // Hysteresis delta
   bool          AF;       // Hysteresis mode
-  int16_t       pin;      // Affected PIN
-  uint32_t      age;      // Last success quiry time
+  int16_t       pin = -1;      // Affected PIN
+  uint32_t      age = 0;      // Last success quiry time
   String addressToString() {
     char szRet[24];
     sprintf(szRet,"%02X%02X%02X%02X%02X%02X%02X%02X", device[0], device[1], device[2], device[3], device[4], device[5], device[6], device[7]);
@@ -44,22 +38,22 @@ struct sensor {
     for (uint8_t j = 0; j < 8; j++)
       device[j] = strtol(str.substring(j*2, j*2+2).c_str(), NULL, 16);
   }
+  bool operator==(const DeviceAddress dev) const {
+    char szRet[24];
+    return (memcmp(device, dev, sizeof(DeviceAddress)) == 0);
+  }
 };
 
 OneWire * oneWire = NULL;
 DallasTemperature * sensors = NULL;
-sensor sens[DEVICE_MAX_COUNT];
+std::vector<sensor> sens;
 int16_t oneWirePin = OW_PIN;
 uint32_t queryInterval = DEVICE_INTERVAL - DEVICE_RESPONSE_WAIT;
 
 // Scan in-memory table for device with address
-int16_t deviceFind(DeviceAddress address) {
-  for (uint8_t i = 0; i < DEVICE_MAX_COUNT; i++) {
-    if (memcmp(sens[i].device, address, sizeof(DeviceAddress)) == 0) {
-      return i;
-    }
-  }
-  return -1;
+sensor* deviceFind(DeviceAddress address) {
+  for (sensor& dev: sens) if (dev == address) return &dev;
+  return nullptr;
 }
 
 uint32_t readTSensorsResponse();
@@ -74,24 +68,15 @@ uint32_t readTSensors() {
 // Get temperature query responce
 uint32_t readTSensorsResponse() {
  uint8_t i;
- DeviceAddress zerro;
- memset(zerro, 0, sizeof(DeviceAddress));
-  for (i = 0; i < DEVICE_MAX_COUNT; i++) {
-   if (memcmp(sens[i].device, zerro, sizeof(DeviceAddress)) != 0) {
-    float t = sensors->getTempC(sens[i].device);
+  for (sensor& dev : sens) {
+    float t = sensors->getTempC(dev.device);
     if (t !=  DEVICE_DISCONNECTED_C) {
-      sens[i].C = t;
-      sens[i].age = millis();
-      if (sens[i].Ct != DEVICE_DISCONNECTED_C) {
-        double delta = abs(sens[i].C - sens[i].Ct);
-        if ((sens[i].AF && delta > sens[i].H / 2) || (!sens[i].AF && delta < sens[i].H / 2)) {
-         // digitalWrite(sens[i].pin, HIGH);
-        } else {
-         // digitalWrite(sens[i].pin, LOW);
-        }
+      dev.C = t;
+      dev.age = millis();
+      if (dev.pin >= 0) {
+        mb->Ireg(dev.pin, t * 100);
       }
     }
-   }
   }
   taskAddWithDelay(readTSensors, queryInterval); 
   return RUN_DELETE;
@@ -100,23 +85,19 @@ uint32_t readTSensorsResponse() {
 // Scan 1-Wire bus for connected devices and fill in-memory table
 bool scanSensors() {
   bool newDeviceAdded = false;
+  Serial.print("Sensor found: ");
+  Serial.println(sensors->getDeviceCount());
   for (uint8_t i = 0; i < sensors->getDeviceCount(); i++) {
     DeviceAddress deviceFound;
     sensors->getAddress(deviceFound, i);
-    int16_t j = deviceFind(deviceFound);
-    if (j != -1) {
-      sens[i].age = millis();
-    } else {
-      DeviceAddress zerro;
-      memset(zerro, 0, sizeof(DeviceAddress));
-      for (j = 0; j < DEVICE_MAX_COUNT; j++) {
-        if (memcmp(sens[j].device, zerro, sizeof(DeviceAddress)) == 0) {
-          memcpy(sens[j].device, deviceFound, sizeof(DeviceAddress));
-          sens[j].name = "New device " + String(i);
-          newDeviceAdded = true;
-          break;
-        }
-      }
+    sensor* s = deviceFind(deviceFound);
+    if (!s) {
+      s = new sensor;
+      memcpy(s->device, deviceFound, sizeof(DeviceAddress));
+      s->name = "New device";
+      sens.push_back(*s);
+      newDeviceAdded = true;
+      break;
     }
   }
   return newDeviceAdded;
@@ -134,18 +115,18 @@ bool saveSensors() {
     if (parm) cJSON_AddItemToObject(json, "interval", parm);
     cJSON* arr = cJSON_CreateArray();
     if (arr) {
-      for (uint8_t i = 0; i < DEVICE_MAX_COUNT; i++) {
+      for (sensor& dev : sens) {
         cJSON* item;
         cJSON* entry = cJSON_CreateObject();
         if (!entry) continue;
-        item = cJSON_CreateString(sens[i].addressToString().c_str());
+        item = cJSON_CreateString(dev.addressToString().c_str());
         if (item) cJSON_AddItemToObject(entry, "address", item);
-        item = cJSON_CreateString(sens[i].name.c_str());
+        item = cJSON_CreateString(dev.name.c_str());
         if (item) cJSON_AddItemToObject(entry, "name", item);
-        item = cJSON_CreateNumber(sens[i].Ct);
-        if (item) cJSON_AddItemToObject(entry, "Ct", item);
-        item = cJSON_CreateNumber(sens[i].H);
-        if (item) cJSON_AddItemToObject(entry, "H", item);
+        item = cJSON_CreateNumber(dev.pin);
+        if (item) cJSON_AddItemToObject(entry, "pin", item);
+//        item = cJSON_CreateNumber(dev.H);
+//        if (item) cJSON_AddItemToObject(entry, "H", item);
         cJSON_AddItemToArray(arr, entry);
       }
       cJSON_AddItemToObject(json, "sensors", arr);
@@ -163,15 +144,6 @@ bool saveSensors() {
 // Read sensors from file system
 bool readSensors() {
   int16_t i;
-  for (i = 0; i < DEVICE_MAX_COUNT; i++) {
-    sens[i].C = DEVICE_DISCONNECTED_C;
-    sens[i].Ct = DEVICE_DISCONNECTED_C;
-    sens[i].H = DEVICE_DISCONNECTED_C;;
-    sens[i].name = String(i);
-    sens[i].pin = -1;
-    sens[i].age = 0;
-    memset(sens[i].device, 0, sizeof(DeviceAddress));    //Fill device id with 0
-  }
   File configFile = SPIFFS.open(CFG_SENSORS, "r");
   if (configFile) {
    char* data = (char*)malloc(configFile.size() + 1);
@@ -200,31 +172,37 @@ bool readSensors() {
       if (cJSON_HasObjectItem(json, "sensors")) arr = cJSON_GetObjectItemCaseSensitive(json, "sensors");
       Serial.println("get array");
       if (arr) {
+        sensor dev;
         cJSON_ArrayForEach(entry, arr) {
           if (i > DEVICE_MAX_COUNT) break;
+          i++;
           Serial.println(i);
           cJSON* item = NULL;
-          if (cJSON_HasObjectItem(entry, "address")) {
-            item = cJSON_GetObjectItemCaseSensitive(entry, "address");
-            if (item && cJSON_IsString(item))
-              sens[i].addressFromString(item->valuestring);
-          }
           if (cJSON_HasObjectItem(entry, "name")) {
             item = cJSON_GetObjectItemCaseSensitive(entry, "name");
             if (item && cJSON_IsString(item))
-              sens[i].name = item->valuestring;
+              dev.name = item->valuestring;
           }
-          if (cJSON_HasObjectItem(entry, "Ct")) {
-            item = cJSON_GetObjectItemCaseSensitive(entry, "Ct");
+          if (cJSON_HasObjectItem(entry, "pin")) {
+            item = cJSON_GetObjectItemCaseSensitive(entry, "pin");
             if (item && cJSON_IsNumber(item))
-              sens[i].Ct = item->valuedouble;
+              dev.pin = item->valuedouble;
+              if (dev.pin >= 0) mb->addIreg(dev.pin);
           }
-          if (cJSON_HasObjectItem(entry, "H")) {
-            item = cJSON_GetObjectItemCaseSensitive(entry, "H");
-            if (item && cJSON_IsNumber(item))
-              sens[i].H = item->valuedouble;
+//          if (cJSON_HasObjectItem(entry, "H")) {
+//            item = cJSON_GetObjectItemCaseSensitive(entry, "H");
+//            if (item && cJSON_IsNumber(item))
+//              dev.H = item->valuedouble;
+//          }
+          if (cJSON_HasObjectItem(entry, "address")) {
+            item = cJSON_GetObjectItemCaseSensitive(entry, "address");
+            if (item && cJSON_IsString(item)) {
+              dev.addressFromString(item->valuestring);
+              Serial.print(dev.addressToString());
+              Serial.println("Push from config");
+              sens.push_back(dev);
+            }
           }
-          i++;
         }
         //cJSON_Delete(arr);
       }
@@ -240,10 +218,12 @@ bool readSensors() {
 
 // Send in-memory sensor's table 
 void jsonWire() {
-  for (uint8_t i = 0; i < DEVICE_MAX_COUNT; i++) {
-    sens[i].age = 0;
+//  for (sensor& dev : sens) {
+//    dev.age = 0;
+//  }
+  if (scanSensors()) {
+    saveSensors();
   }
-  scanSensors();
   server->sendHeader("Connection", "close");
   server->sendHeader("Cache-Control", "no-store, must-revalidate");
   cJSON* root = cJSON_CreateObject();
@@ -256,25 +236,25 @@ void jsonWire() {
     cJSON* json = cJSON_CreateArray();
     if (json) {
       cJSON_AddItemToObject(root, "sensors", json);
-      for (uint8_t i = 0; i < DEVICE_MAX_COUNT; i++) {
+      for (sensor& dev : sens) {
         //cJSON* item;
         cJSON* entry = cJSON_CreateObject();
         if (!entry) continue;
-        item = cJSON_CreateString(sens[i].addressToString().c_str());
+        item = cJSON_CreateString(dev.addressToString().c_str());
         if (item) cJSON_AddItemToObject(entry, "address", item);
-        item = cJSON_CreateString(sens[i].name.c_str());
+        item = cJSON_CreateString(dev.name.c_str());
         if (item) cJSON_AddItemToObject(entry, "name", item);
-        item = cJSON_CreateNumber(sens[i].C);
+        item = cJSON_CreateNumber(dev.C);
         if (item) cJSON_AddItemToObject(entry, "C", item);
-        item = cJSON_CreateNumber(sens[i].Ct);
+        item = cJSON_CreateNumber(dev.Ct);
         if (item) cJSON_AddItemToObject(entry, "Ct", item);
-        item = cJSON_CreateNumber(sens[i].H);
+        item = cJSON_CreateNumber(dev.H);
         if (item) cJSON_AddItemToObject(entry, "H", item);
-        item = cJSON_CreateNumber(sens[i].AF);
+        item = cJSON_CreateNumber(dev.AF);
         if (item) cJSON_AddItemToObject(entry, "AF", item);
-        item = cJSON_CreateNumber(sens[i].pin);
+        item = cJSON_CreateNumber(dev.pin);
         if (item) cJSON_AddItemToObject(entry, "pin", item);
-        item = cJSON_CreateNumber(sens[i].age);
+        item = cJSON_CreateNumber(dev.age);
         if (item) cJSON_AddItemToObject(entry, "seen", item);
         cJSON_AddItemToArray(json, entry);
       }
@@ -287,43 +267,6 @@ void jsonWire() {
     cJSON_Delete(root);
   }
   server->send_P(500, "text/plain", PSTR("Error"));
-}
-
-// Convert F to C
-double FtoC(double F) {
-  return roundf((F - 32) / 1.8 * 100) / 100;
-}
-
-// Convert C to F
-double CtoF(double C) {
-  return C * 1.8 + 32;
-}
-
-// Parse incoming get query URL to comply access parameters and return sensor index
-int16_t getSensorFromURL() {
-  uint8_t i = -1;
-  if (!oneWire || !sensors) {
-    server->send(500, "text/plain", "Error – no 1Wire pin is configured on this board: " + sysName);
-  }
-  if (!server->hasArg("name") || server->arg("name") != sysName) {
-    server->send(403, "text/plain", "Error - Access dinided: " + sysName);
-  }
-  if (!server->hasArg("pp") || server->urlDecode(server->arg("pp")) != sysPassword) {
-    server->send(403, "text/plain", "Error - Access denided: " + sysName);
-  }
-  if (!server->hasArg("u")) {
-    server->send(404, "text/plain", "Error - Object not found: " + sysName);
-  }
-  String u = server->urlDecode(server->arg("u"));
-  for (i = 0; i < DEVICE_MAX_COUNT && sens[i].name != u; i++) {
-    
-    //Nothing
-  }
-  if (i >= DEVICE_MAX_COUNT) {
-    server->send(404, "text/plain", "Error – no such device /“" + u + "/” is configured  check spelling");
-    i = -1;
-  }
-  return i;
 }
 
 // Respond modify sensor name query
@@ -370,30 +313,27 @@ void http1WireModify() {
           continue;
         uint8_t i;
         sensor s;
+        sensor *t;
         s.addressFromString(item->valuestring);
-        for (i = 0; i < DEVICE_MAX_COUNT && !(memcmp(sens[i].device, s.device, sizeof(DeviceAddress)) == 0); i++) {
-          //Nothing
-          //Serial.println(item->valuestring);
-          //Serial.println(s.addressToString());
-          //Serial.println(sens[i].addressToString());
-        }
+        t = deviceFind(s.device);
         Serial.println();
-        if (i >= DEVICE_MAX_COUNT) {
+        if (!t) {
           server->send(403, "text/plain", "Error - Not found");
           goto cleanup;
         }
-        name = sens[i].name;
-        AF = sens[i].AF;
-        pin = sens[i].pin;
+        name = t->name;
+        AF = t->AF;
+        pin = t->pin;
         item = cJSON_GetObjectItemCaseSensitive(entry, "name");
         if (item || cJSON_IsString(item)) name = item->valuestring;
         item = cJSON_GetObjectItemCaseSensitive(entry, "AF");
         if (item || cJSON_IsNumber(item)) AF = item->valuedouble;
         item = cJSON_GetObjectItemCaseSensitive(entry, "pin");
         if (item || cJSON_IsNumber(item)) pin = item->valuedouble;
-        sens[i].name = name;
-        sens[i].AF = AF;
-        sens[i].pin = pin;
+        t->name = name;
+        t->AF = AF;
+        t->pin = pin;
+        mb->addIreg(pin);
       }
     //cJSON_Delete(json);
       saveSensors();
@@ -402,29 +342,6 @@ void http1WireModify() {
   cleanup:
   if (root) cJSON_Delete(root);
   return;
-}
-
-bool handleFileRead(String path){
-  if(path.endsWith("/")) path += "index.html";
-  String contentType = StaticRequestHandler::getContentType(path);
-  String pathWithGz = path + ".gz";
-  if(SPIFFS.exists(pathWithGz))
-    path += ".gz";
-  if(SPIFFS.exists(path)){
-    server->sendHeader("Connection", "close");
-    server->sendHeader("Cache-Control", "no-store, must-revalidate");
-    server->sendHeader("Access-Control-Allow-Origin", "*");
-    File file = SPIFFS.open(path, "r");
-    size_t sent = server->streamFile(file, contentType);
-    file.close();
-    return true;
-  }
-  return false;
-}
-
-void handleGenericFile() {
-  if(!handleFileRead(server->uri()))
-    server->send(404, "text/plain", "FileNotFound");
 }
 
 // Initialize
@@ -445,7 +362,6 @@ uint32_t dsInit() {
   Serial.println("bus scanned");
   server->on("/wire", jsonWire);
   server->on("/1wiremodify", http1WireModify);
-  server->onNotFound(handleGenericFile);
   Serial.println("web inited");
   taskAdd(readTSensors);
   Serial.println(ESP.getFreeHeap());
