@@ -65,6 +65,17 @@ uint32_t readTSensors() {
   return RUN_DELETE;  
 }
 
+
+bool cbWrite(Modbus::ResultCode event, uint16_t transactionId, void* data) {
+  Serial.print("Write: ");
+  Serial.println(event);
+  return true;
+}
+uint16_t rReg = 0;
+bool cbReg(Modbus::ResultCode event, uint16_t transactionId, void* data) {
+  Serial.printf("Read: %d, Value: %d\n", event, rReg);
+  return true;
+}
 // Get temperature query responce
 uint32_t readTSensorsResponse() {
  uint8_t i;
@@ -75,6 +86,12 @@ uint32_t readTSensorsResponse() {
       dev.age = millis();
       if (dev.pin >= 0) {
         mb->Ireg(dev.pin, t * 100);
+        if (!mb->isConnected(IPAddress(192,168,30,13))) {
+          mb->connect(IPAddress(192,168,30,13));
+        }
+        mb->writeHreg(IPAddress(192,168,30,13), 1, t * 100, cbWrite);
+        mb->writeHreg(IPAddress(192,168,30,13), 2, -100);
+        mb->readHreg(IPAddress(192,168,30,13), 2, &rReg, 1, cbReg);
       }
     }
   }

@@ -19,6 +19,8 @@ uint32_t modbusInit() {
   mb = new ModbusIP();
   mb->onConnect(connect);
   mb->slave();
+  mb->master();
+  mb->connect(IPAddress(192,168,30,13));
   taskAdd(modbusLoop);
   return RUN_DELETE;
 }
