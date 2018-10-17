@@ -8,6 +8,8 @@
 #define DEFAULT_NAME "MR1"
 #define DEFAULT_PASSWORD "P@ssw0rd"
 
+extern ModbusIP* mb;
+
 String sysName = DEFAULT_NAME;
 String sysPassword = DEFAULT_PASSWORD;
 
@@ -22,8 +24,8 @@ uint32_t webLoop() {
 bool handleFileRead(String path){
   if(path.endsWith("/")) path += "index.html";
   String contentType = StaticRequestHandler::getContentType(path);
-  String pathWithGz = path + ".gz";
-  if(SPIFFS.exists(pathWithGz))
+  //String pathWithGz = path + ".gz";
+  if(SPIFFS.exists(path + ".gz"))
     path += ".gz";
   if(SPIFFS.exists(path)){
     server->sendHeader("Connection", "close");
@@ -54,9 +56,9 @@ uint32_t webInit() {
 
 void handlePrivate() {
   char data[400];
-  char* xml = ("<?xml version = \"1.0\" encoding=\"UTF-8\" ?><ctrl><private><heap>%d</heap><rssi>%d</rssi><uptime>%ld</uptime></private></ctrl>");
-  //sprintf(data, ("<?xml version = \"1.0\" encoding=\"UTF-8\" ?><ctrl><private><heap>%d</heap><rssi>%d</rssi><uptime>%ld</uptime></private></ctrl>"), ESP.getFreeHeap(), WiFi.RSSI(),(uint32_t)millis()/1000);
-  sprintf(data, xml, ESP.getFreeHeap(), WiFi.RSSI(),millis()/1000);
+  //char* xml = ("<?xml version = \"1.0\" encoding=\"UTF-8\" ?><ctrl><private><heap>%d</heap><rssi>%d</rssi><uptime>%ld</uptime><transactions>%d</transactions></private></ctrl>");
+  //sprintf(data, xml, ESP.getFreeHeap(), WiFi.RSSI(),millis()/1000, mb->transactions());
+  sprintf_P(data, PSTR("<?xml version = \"1.0\" encoding=\"UTF-8\" ?><ctrl><private><heap>%d</heap><rssi>%d</rssi><uptime>%ld</uptime><transactions>%d</transactions></private></ctrl>"), ESP.getFreeHeap(), WiFi.RSSI(),millis()/1000, mb->transactions());
   server->sendHeader("Connection", "close");
   server->sendHeader("Cache-Control", "no-store, must-revalidate");
   server->send(200, "text/xml", data);

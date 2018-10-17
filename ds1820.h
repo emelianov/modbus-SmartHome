@@ -370,7 +370,6 @@ uint32_t dsInit() {
   sensors->begin();
   sensors->setResolution(12);
   sensors->setWaitForConversion(false);
-  SPIFFS.begin();
   readSensors();
   Serial.println("config read");
   if (scanSensors) {
