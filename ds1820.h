@@ -5,7 +5,7 @@
 
 #pragma once
 
-#define DEVICE_INTERVAL 10000
+const uint32_t PROGMEM DEVICE_INTERVAL = 10000;
 
 #define OW_PIN D2
 
@@ -86,13 +86,13 @@ uint32_t readTSensorsResponse() {
       dev.age = millis();
       if (dev.pin >= 0) {
         mb->Ireg(dev.pin, t * 100);
-        if (!mb->isConnected(IPAddress(192,168,30,13))) {
+/*        if (!mb->isConnected(IPAddress(192,168,30,13))) {
           mb->connect(IPAddress(192,168,30,13));
         }
         mb->writeHreg(IPAddress(192,168,30,13), 1, t * 100, cbWrite);
         mb->writeHreg(IPAddress(192,168,30,13), 2, -100);
         mb->readHreg(IPAddress(192,168,30,13), 2, &rReg, 1, cbReg);
-      }
+*/      }
     }
   }
   taskAddWithDelay(readTSensors, queryInterval); 

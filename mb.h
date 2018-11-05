@@ -23,17 +23,16 @@ struct register_t {
   String name = "";
   bool pull = false;
   TAddress reg = COIL(0);
-  IPAddress ip = IPADDR_NONE;
+  IPAddress ip;// = IPADDR_NONE;
   uint32_t interval = 0xFFFFFFFF;
   uint16_t taskId = 0;
-  uint16_t remote = 0;
+  TAddress remote = COIL(0);
 };
 
 std::vector<register_t> regs;
 
 bool cbPull(Modbus::ResultCode event, uint16_t transactionId, void* data) {
-  Serial.print("Pull result: ");
-  Serial.println(event);
+  //Serial.printf_P("Pull result: 0x%02X\n", event);
   return true;
 }
 
@@ -41,10 +40,76 @@ uint32_t queryRemoteIreg() {
   uint16_t thisTaskId = taskId();
   std::vector<register_t>::iterator it = std::find_if(regs.begin(), regs.end(), [thisTaskId](const register_t& d) {return d.taskId == thisTaskId;});
   if (it != regs.end()) {
-    mb->pullHregToIreg(it->ip, it->remote, it->reg.address, 1, cbPull);
+    mb->pullIreg(it->ip, it->remote.address, it->reg.address, 1, cbPull);
     return it->interval;
   }
   return RUN_DELETE;
+}
+
+uint32_t queryRemoteHreg() {
+  uint16_t thisTaskId = taskId();
+  std::vector<register_t>::iterator it = std::find_if(regs.begin(), regs.end(), [thisTaskId](const register_t& d) {return d.taskId == thisTaskId;});
+  if (it != regs.end()) {
+    if (mb->isConnected(it->ip)) {
+      mb->pullHregToIreg(it->ip, it->remote.address, it->reg.address, 1, cbPull);
+    } else {
+      Serial.println(ESP.getFreeHeap());
+      mb->connect(it->ip);
+      Serial.println(ESP.getFreeHeap());
+    }
+    return it->interval;
+  }
+  return RUN_DELETE;
+}
+
+uint16_t addIregPull(IPAddress ip, uint16_t remote, uint16_t local, uint32_t interval) {
+  register_t reg;
+  mb->addIreg(local);
+  reg.ip = ip;
+  reg.reg = IREG(local);
+  reg.remote = IREG(remote);
+  reg.interval = interval;
+  reg.taskId = taskAdd(queryRemoteIreg);
+  regs.push_back(reg);
+  return reg.taskId;
+}
+
+uint16_t addPull(IPAddress ip, TAddress remote, TAddress local, uint32_t interval) {
+  register_t reg;
+  switch (local.type) {
+  case TAddress::HREG:
+    mb->addHreg(local.address);
+  break;
+  case TAddress::IREG:
+    mb->addIreg(local.address);
+  break;
+  case TAddress::COIL:
+    mb->addCoil(local.address);
+  break;
+  case TAddress::ISTS:
+    mb->addIsts(local.address);
+  break;
+  }
+  reg.reg = local;
+  reg.ip = ip;
+  reg.remote = remote;
+  switch (remote.type) {
+  case TAddress::HREG:
+    reg.taskId = taskAdd(queryRemoteHreg);
+  break;
+  case TAddress::IREG:
+    reg.taskId = taskAdd(queryRemoteIreg);
+  break;
+  case TAddress::COIL:
+  //  reg.taskId = taskAdd(queryRemoteCoil);
+  break;
+  case TAddress::ISTS:
+  //  reg.taskId = taskAdd(queryRemoteIsts);
+  break;
+  }
+  reg.interval = interval;
+  regs.push_back(reg);
+  return reg.taskId;
 }
 
 uint16_t cb1(TRegister* reg, uint16_t val) {
@@ -102,7 +167,7 @@ bool readModbus() {
           if (cJSON_HasObjectItem(entry, "remote")) {
             item = cJSON_GetObjectItemCaseSensitive(entry, "remote");
             if (item && cJSON_IsNumber(item))
-              reg.remote = item->valuedouble;
+              reg.remote = HREG(item->valuedouble);
           }
           if (cJSON_HasObjectItem(entry, "hreg")) {
             item = cJSON_GetObjectItemCaseSensitive(entry, "hreg");
@@ -171,12 +236,12 @@ uint32_t readRemote() {
 uint32_t modbusInit() {
   mb = new ModbusIP();
   mb->onConnect(connect);
-  readModbus();
-  mb->slave();
+  //readModbus();
+  //mb->slave();
   mb->master();
   mb->addHreg(10, 0, 5);
   mb->onSetHreg(10, cb10, 5);
-  taskAdd(readRemote);
+//  taskAdd(readRemote);
   mb->connect(IPAddress(192,168,30,13));
   taskAdd(modbusLoop);
   return RUN_DELETE;
