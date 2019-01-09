@@ -1,4 +1,4 @@
-////////////////////////////////////////
+//////////////////////////////////////////
 // ESP8266/ESP32 Modbus Temperature sensor
 // (c)2018, a.m.emelianov@gmail.com
 //
@@ -6,7 +6,8 @@
 #define BUSY ;
 #define IDLE ;
 #define VERSION "0.1"
-#define TDEBUG(...) Serial.printf(##__VA_ARGS__);
+#define TDEBUG(format, ...) Serial.printf_P(PSTR(format), ##__VA_ARGS__);
+#define MEM_LOW 4096
 
 extern String sysName;
 
@@ -16,9 +17,22 @@ extern String sysName;
 #include "web.h"
 #include "mb.h"
 #include "ds1820.h"
+#include "gpio.h"
 #include "cli.h"
+#include "update.h"
 
 ModbusIP* mb;
+uint32_t mem = 0;
+uint32_t tm = 0;
+uint32_t restartESP() {
+  ESP.restart();
+  return RUN_DELETE;
+}
+
+uint32_t watchDog() {
+  if (ESP.getFreeHeap() < MEM_LOW) ESP.restart();
+  return 10000;
+}
 
 void setup(void)
 {
@@ -33,12 +47,30 @@ void setup(void)
   wifiInit();    // Connect to WiFi network & Start discovery services
   webInit();     // Start Web-server
   modbusInit();
-  cliInit();
+  taskAdd(cliInit);
+  taskAdd(updateInit);
   taskAdd(dsInit);      // Start 1-Wire temperature sensors
+  taskAdd(gpioInit);
 }
 
-void loop() {
-  //if (taskExists(dsInit)) { Serial.print("!!! "); Serial.println(taskRemainder(dsInit));} 
+void loop() { 
+/*  if (ESP.getFreeHeap() != mem) {
+      mem = ESP.getFreeHeap();
+      TDEBUG("1: %d - %d\n", mem, micros() / 1000 - tm);
+      tm = micros() / 1000;
+  }
+  taskExec();
+  if (ESP.getFreeHeap() != mem) {
+      TDEBUG("2: %d - %d\n", mem, micros() / 1000 - tm);
+      tm = micros() / 1000;
+  }
+  yield();
+  if (ESP.getFreeHeap() != mem) {
+      mem = ESP.getFreeHeap();
+      TDEBUG("3: %d - %d\n", mem, micros() / 1000 - tm);
+      tm = micros() / 1000;
+  }
+*/
   taskExec();
   yield();
 }

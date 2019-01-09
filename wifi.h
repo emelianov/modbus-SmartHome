@@ -13,19 +13,20 @@ uint32_t wifiWait() {
     Serial.println(WiFi.localIP());
    
     if (!MDNS.begin(sysName.c_str())) {
-      Serial.print("[mDNS: failed]");
+      TDEBUG("[mDNS: failed]");
     } else {
       MDNS.addService("http", "tcp", 80);  // Add service to MDNS-SD
-      Serial.print("[mDNS: started]");
+      TDEBUG("[mDNS: started]");
     }
     // LLMNR
    #ifdef ESP8266
     LLMNR.begin(sysName.c_str());
-    Serial.println("[LLMNR: started]");
+    TDEBUG("[LLMNR: started]");
    #endif
+
     return RUN_DELETE;
   }
-  Serial.print(".");
+  TDEBUG(".");
   return 500;
 }
 

@@ -50,7 +50,7 @@ uint32_t webInit() {
   server->onNotFound(handleGenericFile);
   server->on("/private", handlePrivate);
   taskAdd(webLoop);
-  Serial.print("[HTTP started]");
+  TDEBUG("[HTTP started]");
   return RUN_DELETE;
 }
 

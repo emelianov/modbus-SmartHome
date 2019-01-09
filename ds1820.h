@@ -27,7 +27,7 @@ struct sensor {
   float         Ct;       // Hysteresis base
   float         H;        // Hysteresis delta
   bool          AF;       // Hysteresis mode
-  int16_t       pin = -1;      // Affected PIN
+  int16_t       pin = -1;      // Map to IREG
   uint32_t      age = 0;      // Last success quiry time
   String addressToString() {
     char szRet[24];
@@ -44,8 +44,8 @@ struct sensor {
   }
 };
 
-OneWire * oneWire = NULL;
-DallasTemperature * sensors = NULL;
+OneWire* oneWire = NULL;
+DallasTemperature* sensors = NULL;
 std::vector<sensor> sens;
 int16_t oneWirePin = OW_PIN;
 uint32_t queryInterval = DEVICE_INTERVAL - DEVICE_RESPONSE_WAIT;
@@ -100,8 +100,8 @@ uint32_t readTSensorsResponse() {
 }
 
 // Scan 1-Wire bus for connected devices and fill in-memory table
-bool scanSensors() {
-  bool newDeviceAdded = false;
+uint8_t scanSensors() {
+  uint8_t newDeviceAdded = 0;
   Serial.print("Sensor found: ");
   Serial.println(sensors->getDeviceCount());
   for (uint8_t i = 0; i < sensors->getDeviceCount(); i++) {
@@ -113,7 +113,7 @@ bool scanSensors() {
       memcpy(s->device, deviceFound, sizeof(DeviceAddress));
       s->name = "New device";
       sens.push_back(*s);
-      newDeviceAdded = true;
+      newDeviceAdded++;
       break;
     }
   }
@@ -350,7 +350,7 @@ void http1WireModify() {
         t->name = name;
         t->AF = AF;
         t->pin = pin;
-        mb->addIreg(pin);
+        if (pin >= 0) mb->addIreg(pin);
       }
     //cJSON_Delete(json);
       saveSensors();
@@ -372,7 +372,7 @@ uint32_t dsInit() {
   sensors->setWaitForConversion(false);
   readSensors();
   Serial.println("config read");
-  if (scanSensors) {
+  if (scanSensors()) {
     saveSensors();
   }
   Serial.println("bus scanned");
