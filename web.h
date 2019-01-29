@@ -58,7 +58,7 @@ void handlePrivate() {
   char data[400];
   //char* xml = ("<?xml version = \"1.0\" encoding=\"UTF-8\" ?><ctrl><private><heap>%d</heap><rssi>%d</rssi><uptime>%ld</uptime><transactions>%d</transactions></private></ctrl>");
   //sprintf(data, xml, ESP.getFreeHeap(), WiFi.RSSI(),millis()/1000, mb->transactions());
-  sprintf_P(data, PSTR("<?xml version = \"1.0\" encoding=\"UTF-8\" ?><ctrl><private><heap>%d</heap><rssi>%d</rssi><uptime>%ld</uptime><transactions>%d</transactions></private></ctrl>"), ESP.getFreeHeap(), WiFi.RSSI(),millis()/1000, mb->transactions());
+  sprintf_P(data, PSTR("<?xml version = \"1.0\" encoding=\"UTF-8\" ?><ctrl><private><heap>%d</heap><rssi>%d</rssi><uptime>%ld</uptime><transactions>%d</transactions></private></ctrl>"), ESP.getFreeHeap(), WiFi.RSSI(),millis()/1000, 0);
   server->sendHeader("Connection", "close");
   server->sendHeader("Cache-Control", "no-store, must-revalidate");
   server->send(200, "text/xml", data);

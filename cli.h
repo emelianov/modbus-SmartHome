@@ -14,6 +14,8 @@ cp
 mv
 format
 tftp
+date
+time
 version
 */
 #include <Wire.h>
@@ -27,6 +29,7 @@ version
 #include <Run.h>
 #include <Shell.h>
 #include <LoginShell.h>
+#include <ESP8266Ping.h>
 
 WiFiServer console(23);
 WiFiClient client;
@@ -44,6 +47,24 @@ char* regTypeToStr(TAddress reg) {
   }
   return s;
 }
+
+uint32_t pingWait() {
+  int8_t p = Ping.ping();
+  if (p == -1) return 1000;
+  shell.printf((p > 0)?"Alive\n":"No response\n");
+  return RUN_DELETE;
+}
+void cliPing(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 1) {
+    IPAddress ip;
+    ip.fromString(argv[1]);
+    if (ip != IPADDR_NONE) {
+      Ping.ping(ip, 3, false);
+      taskAddWithDelay(pingWait, 1000);
+    }
+  }
+}
+ShellCommand(ping, "<ip> - Ping", cliPing);
 
 void clii2cScan(Shell &shell, int argc, const ShellArguments &argv) {
   uint8_t error, address;

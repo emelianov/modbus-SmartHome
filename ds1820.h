@@ -7,7 +7,8 @@
 
 const uint32_t PROGMEM DEVICE_INTERVAL = 10000;
 
-#define OW_PIN D2
+#define OW_PIN 1
+//D2
 
 #include <FS.h>
 #include <Run.h>
