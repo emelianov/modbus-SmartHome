@@ -15,7 +15,6 @@ mv
 format
 tftp
 date
-time
 version
 */
 #include <Wire.h>
@@ -222,47 +221,82 @@ ShellCommand(pullsave, "- Modbus: Slave Pull registers", cliPullSave);
 void cliHreg(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc < 2) return;
   uint16_t reg = atoi(argv[1]);
+  bool del = false;
+  uint16_t val = 0;
   if (argv.count() > 2) {
-    uint16_t val = atoi(argv[2]);
-    mb->addHreg(reg, val);
-    mb->Hreg(reg, val);
+    if (strcmp(argv[2], "delete") == 0) {
+      mb->removeHreg(reg);
+      del = true;
+    } else {
+      val = atoi(argv[2]);
+      mb->addHreg(reg, val);
+      mb->Hreg(reg, val);
+    }
+    if (argv.count() > 3 && strcmp(argv[3], "save") == 0) saveDefaults(HREG(reg), val, del);
   }
   shell.println(mb->Hreg(reg));
 }
-ShellCommand(hreg, "<hreg>[ <value>] - Modbus: Hreg get/set/add", cliHreg);
+ShellCommand(hreg, "<hreg>[ <value>|delete][ save] - Modbus: Hreg get/set/add/delete", cliHreg);
+
 void cliCoil(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc < 2) return;
   uint16_t reg = atoi(argv[1]);
+  bool del = false;
+  bool val = false;
   if (argv.count() > 2) {
-    bool val = atoi(argv[2]) != 0;
-    mb->addCoil(reg, val);
-    mb->Coil(reg, val);
+    if (strcmp(argv[2], "delete") == 0) {
+      mb->removeCoil(reg);
+      del = true;
+    } else {
+      val = atoi(argv[2]) != 0;
+      mb->addCoil(reg, val);
+      mb->Coil(reg, val);
+    }
+    if (argv.count() > 3 && strcmp(argv[3], "save") == 0) saveDefaults(COIL(reg), val, del);
   }
   shell.println(mb->Coil(reg));
 }
-ShellCommand(coil, "<coil>[ <0|1>] - Modbus: Coil get/set/add", cliCoil);
+ShellCommand(coil, "<coil>[ <0|1>|delete][ save] - Modbus: Coil get/set/add/delete", cliCoil);
+
 void cliIsts(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc < 2) return;
   uint16_t reg = atoi(argv[1]);
+  bool del = false;
+  bool val = false;
   if (argv.count() > 2) {
-    bool val = atoi(argv[2]) != 0;
-    mb->addIsts(reg, val);
-    mb->Ists(reg, val);
+    if (strcmp(argv[2], "delete") == 0) {
+      mb->removeIsts(reg);
+      del = true;      
+    } else {
+      val = atoi(argv[2]) != 0;
+      mb->addIsts(reg, val);
+      mb->Ists(reg, val);
+    }
+    if (argv.count() > 3 && strcmp(argv[3], "save") == 0) saveDefaults(ISTS(reg), val, del);
   }
   shell.println(mb->Ists(reg));
 }
-ShellCommand(ists, "<ists>[ <0|1>] - Modbus: Ists get/set/add", cliIsts);
+ShellCommand(ists, "<ists>[ <0|1>|delete][ save] - Modbus: Ists get/set/add/remove", cliIsts);
+
 void cliIreg(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc < 2) return;
   uint16_t reg = atoi(argv[1]);
+  bool del = false;
+  uint16_t val = false;
   if (argv.count() > 2) {
-    uint16_t val = atoi(argv[2]);
-    mb->addIreg(reg, val);
-    mb->Ireg(reg, val);
+    if (strcmp(argv[2], "delete") == 0) {
+      mb->removeIreg(reg);
+      del = true;      
+    } else {
+      val = atoi(argv[2]);
+      mb->addIreg(reg, val);
+      mb->Ireg(reg, val);
+    }
+    if (argv.count() > 3 && strcmp(argv[3], "save") == 0) saveDefaults(IREG(reg), val, del);
   }
   shell.println(mb->Ireg(reg));
 }
-ShellCommand(ireg, "<ireg>[ <value>] - Modbus: Ireg get/set/add", cliIreg);
+ShellCommand(ireg, "<ireg>[ <value>|delete][ save] - Modbus: Ireg get/set/add/remove", cliIreg);
 
 void cliConnect(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc > 1) {

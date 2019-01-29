@@ -4,6 +4,7 @@
 #include <cJSON.h>
 
 #define CFG_MODBUS "/modbus.json"
+#define CFG_REGS "/defaults.json"
 #define MB_IDLE 100
 #define PULL_MAX_COUNT 10
 
@@ -147,8 +148,8 @@ bool saveModbus() {
     cJSON* json = cJSON_CreateObject();
     if (json) {
       cJSON* parm;
-      parm = cJSON_CreateNumber(0);
-      if (parm) cJSON_AddItemToObject(json, "dummy", parm);
+      parm = cJSON_CreateString(VERSION);
+      if (parm) cJSON_AddItemToObject(json, "version", parm);
       cJSON* arr = cJSON_CreateArray();
       if (arr) {
         for (register_t& reg : regs) {
@@ -221,11 +222,11 @@ bool readModbus() {
           cJSON* arr = NULL;
           cJSON* entry = NULL;
           cJSON* item;
-          if (cJSON_HasObjectItem(json, "dummy")) {
-            item = cJSON_GetObjectItemCaseSensitive(json, "dummy");
-            if (item && cJSON_IsNumber(item))
-              isMaster = item->valueint;
-          }
+          //if (cJSON_HasObjectItem(json, "dummy")) {
+          //  item = cJSON_GetObjectItemCaseSensitive(json, "dummy");
+          //  if (item && cJSON_IsNumber(item))
+          //    isMaster = item->valueint;
+          //}
           i = 0;
           if (cJSON_HasObjectItem(json, "registers")) arr = cJSON_GetObjectItemCaseSensitive(json, "registers");
           if (arr) {
@@ -288,6 +289,73 @@ bool readModbus() {
   }
   return false;
 }
+
+char* regTypeToStr(TAddress reg);
+bool saveDefaults(TAddress reg, uint16_t value, bool erase = false) {
+  cJSON* json = nullptr;
+  cJSON* arr = nullptr;
+  File configFile = SPIFFS.open(CFG_REGS, "r");
+  if (configFile) {
+    char* data = (char*)malloc(configFile.size() + 1);
+    if (data) {
+      if (configFile.read((uint8_t*)data, configFile.size()) == configFile.size()) {
+        data[configFile.size()] = '/0';
+        TDEBUG("mb: config %d bytes read\n", configFile.size());
+        json = cJSON_Parse(data);
+      }
+      free(data);
+    }
+    configFile.close();
+  }
+  if (!json) {
+    json = cJSON_CreateObject();
+    if (!json) return false;
+    cJSON* parm;
+    parm = cJSON_CreateString(VERSION);
+    if (parm) cJSON_AddItemToObject(json, "version", parm);
+  }
+  arr = cJSON_GetObjectItemCaseSensitive(json, regTypeToStr(reg));
+  if (!arr) {
+    arr = cJSON_CreateArray();
+    if (arr) cJSON_AddItemToObject(json, regTypeToStr(reg), arr);
+  }
+  if (arr) {
+    char* out;
+    cJSON* item;
+    cJSON* entry = nullptr;
+    for (uint16_t i = 0; i < cJSON_GetArraySize(arr); i++) {
+      entry = cJSON_GetArrayItem(arr, i);
+      if (!entry) continue;
+      item = cJSON_GetObjectItemCaseSensitive(entry, "address");
+      if (item && cJSON_IsNumber(item) && item->valueint == reg.address) {
+        cJSON_DeleteItemFromArray(arr, i);
+        break;
+      }
+    }
+    entry = cJSON_CreateObject();
+    if (!entry) goto cleanup;
+    item = cJSON_CreateNumber(reg.address);
+    if (!item) goto cleanup;
+    cJSON_AddItemToObject(entry, "address", item);
+    item = cJSON_CreateNumber(value);
+    if (!item) goto cleanup;
+    cJSON_AddItemToObject(entry, "value", item);
+    if (!erase) cJSON_AddItemToArray(arr, entry);
+    configFile = SPIFFS.open(CFG_REGS, "w");
+    if (configFile) {
+      out = cJSON_Print(json);
+      configFile.write((uint8_t*)out, strlen(out));
+      configFile.close();
+      free(out);
+    }
+    cleanup:
+    //cJSON_Delete(entry);
+    cJSON_Delete(json);
+    return true;
+  }
+  return false;
+}
+
 
 bool cbRead(Modbus::ResultCode event, uint16_t transactionId, void* data) {
   Serial.print("Read 3: ");
