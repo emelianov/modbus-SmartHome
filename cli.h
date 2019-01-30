@@ -213,10 +213,18 @@ void cliPushIsts(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(pushists, "<local_ists> <ip> <slave_coil> <interval> - Modbus: Push local Ists to slave Coil", cliPushIsts);
 
+void cliPushIreg(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc < 5) return;
+  IPAddress ip;
+  ip.fromString(argv[2]);
+  shell.println(addPull(ip, HREG(atoi(argv[3])), IREG(atoi(argv[1])), atoi(argv[4]), 1, false));
+}
+ShellCommand(pushireg, "<local_ireg> <ip> <slave_hreg> <interval> - Modbus: Push local Ireg to slave Hreg", cliPushIreg);
+
 void cliPullSave(Shell &shell, int argc, const ShellArguments &argv) {
   shell.println(saveModbus()?"Done":"Error");
 }
-ShellCommand(pullsave, "- Modbus: Slave Pull registers", cliPullSave);
+ShellCommand(pullsave, "- Modbus: Save Pull/Push registers", cliPullSave);
 
 void cliHreg(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc < 2) return;
@@ -375,7 +383,7 @@ void cliPullList(Shell &shell, int argc, const ShellArguments &argv) {
                         regTypeToStr(item.remote), item.remote.address, item.count, item.pull?"=>":"<=", regTypeToStr(item.reg), item.reg.address, item.interval, item.name.c_str());
   }
 }
-ShellCommand(pulllist, "- Modbus: List slave pulls/pushs", cliPullList);
+ShellCommand(pulllist, "- Modbus: List slave Pulls/Pushs", cliPullList);
 
 // System - related
 uint32_t cliLoop();
@@ -454,7 +462,7 @@ void cliLs(Shell &shell, int argc, const ShellArguments &argv) {
  #ifdef ESP8266
   FSInfo fsInfo;
   SPIFFS.info(fsInfo);
-  shell.printf_P(PSTR("Free/Total (bytes): %lu/%lu\n"), fsInfo.usedBytes, fsInfo.totalBytes);
+  shell.printf_P(PSTR("Used/Total (bytes): %lu/%lu\n"), fsInfo.usedBytes, fsInfo.totalBytes);
  #else
   shell.print(SPIFFS.usedBytes());
   shell.print("/");
