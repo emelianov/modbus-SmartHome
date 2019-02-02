@@ -21,6 +21,7 @@ version
 #ifdef ESP8266
  #include <ESP8266WiFi.h>
  #include <FS.h>
+ #include <ESP8266Ping.h>
 #else
  #include <WiFi.h>
  #include <SPIFFS.h>
@@ -28,7 +29,6 @@ version
 #include <Run.h>
 #include <Shell.h>
 #include <LoginShell.h>
-#include <ESP8266Ping.h>
 
 WiFiServer console(23);
 WiFiClient client;
@@ -37,16 +37,17 @@ LoginShell shell;
 
 char* regTypeToStr(TAddress reg) {
   char* s = "COIL";
-  if (reg.type == TAddress::HREG) {
+  if (reg.isHreg()) {
     s = "HREG";
-  } else if (reg.type == TAddress::IREG) {
+  } else if (reg.isIreg()) {
     s = "IREG";
-  } else if (reg.type == TAddress::ISTS) {
+  } else if (reg.isIsts()) {
     s = "ISTS";
   }
   return s;
 }
 
+#ifdef ESP8266
 uint32_t pingWait() {
   int8_t p = Ping.ping();
   if (p == -1) return 1000;
@@ -64,6 +65,7 @@ void cliPing(Shell &shell, int argc, const ShellArguments &argv) {
   }
 }
 ShellCommand(ping, "<ip> - Ping", cliPing);
+#endif
 
 void clii2cScan(Shell &shell, int argc, const ShellArguments &argv) {
   uint8_t error, address;

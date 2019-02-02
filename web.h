@@ -1,8 +1,16 @@
 #pragma once
 
 #include <Run.h>
-#include <FS.h>
-#include <ESP8266WebServer.h>
+#ifdef ESP8266
+ #include <FS.h>
+ #include <ESP8266WebServer.h>
+ ESP8266WebServer* server;
+#else
+ #include <SPIFFS.h>
+ #include <ESPWebServer.h>
+ ESPWebServer* server;
+#endif
+
 #include <detail/RequestHandlersImpl.h> // for StaticRequestHandler::getContentType(path);
 
 #define DEFAULT_NAME "MR1"
@@ -14,7 +22,6 @@ String sysName = DEFAULT_NAME;
 String sysPassword = DEFAULT_PASSWORD;
 
 void handlePrivate();
-ESP8266WebServer* server;
 
 uint32_t webLoop() {
   server->handleClient();
@@ -45,7 +52,11 @@ void handleGenericFile() {
 }
 
 uint32_t webInit() {
+ #ifdef ESP8266
   server = new ESP8266WebServer(80);
+ #else
+  server = new ESPWebServer(80);
+ #endif
   server->begin();
   server->onNotFound(handleGenericFile);
   server->on("/private", handlePrivate);

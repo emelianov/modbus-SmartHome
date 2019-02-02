@@ -1,11 +1,13 @@
 #pragma once
 // Simple update module
 // To upload through terminal you can use: curl -F "image=@firmware.bin" ehsensor8.local/update
-#ifndef ESP8266
-#include <Update.h>
+#ifdef ESP8266
+ extern ESP8266WebServer* server;
+#else
+ extern ESPWebServer* server;
+ #include <Update.h>
+ #define ESP32_SKETCH_SIZE 1310720
 #endif
-#define ESP32_SKETCH_SIZE 1310720
-extern ESP8266WebServer* server;
 extern uint32_t restartESP();
 
 void updateHandle() {

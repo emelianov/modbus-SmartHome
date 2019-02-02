@@ -10,9 +10,12 @@
 #define MEM_LOW 4096
 
 extern String sysName;
-
+#ifdef ESP8266
+ #include <FS.h>
+#else
+ #include <SPIFFS.h>
+#endif
 #include <ModbusIP_ESP8266.h>
-#include <FS.h>
 #include "wifi.h"
 #include "web.h"
 #include "mb.h"

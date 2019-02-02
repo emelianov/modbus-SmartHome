@@ -5,9 +5,13 @@
 
 #pragma once
 
-const uint32_t PROGMEM DEVICE_INTERVAL = 10000;
+#ifdef ESP8266
+ #define OW_PIN D2
+#else
+ #define OW_PIN 21
+#endif
 
-#define OW_PIN D2
+const uint32_t PROGMEM DEVICE_INTERVAL = 10000;
 
 #include <FS.h>
 #include <Run.h>

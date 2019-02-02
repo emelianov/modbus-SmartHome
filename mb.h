@@ -5,7 +5,7 @@
 
 #define CFG_MODBUS "/modbus.json"
 #define CFG_REGS "/defaults.json"
-#define MB_IDLE 100
+#define MB_IDLE 10
 #define PULL_MAX_COUNT 10
 
 extern ModbusIP* mb;
