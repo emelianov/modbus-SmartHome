@@ -12,6 +12,7 @@
 
 ### File system
 
+* format
 * ls
 * rm
 * cat
@@ -67,5 +68,5 @@
 * ps
 * kill
 * uptime
-* ping
+* ping (ESP8266 only)
 * ?

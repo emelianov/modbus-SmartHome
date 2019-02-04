@@ -12,10 +12,11 @@ i2cread <id> <bytes>
 i2cwrite <id> <byte>
 cp
 mv
-format
 tftp
 date
-version
+gpioname
+pullname
+Fix dsname
 */
 #include <Wire.h>
 #ifdef ESP8266
@@ -447,6 +448,15 @@ void cliUptime(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(uptime, "- System uptime", cliUptime);
 
 // SPIFFS - related
+void cliFormat(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 0 && argv.count() > 0 && strcmp(argv[1], "force") == 0) {
+    SPIFFS.format();
+    shell.printf_P("Done\n");
+  }
+  shell.printf_P("All data to be lost. Use 'format force' to precess\n");
+}
+ShellCommand(format, "[ force] - SPIFFS: Format filesystem", cliFormat);
+
 void cliLs(Shell &shell, int argc, const ShellArguments &argv) {
   String path = "/";  //argc?argv[1]:"/";
  #ifdef ESP8266
@@ -519,6 +529,11 @@ void cliRm(Shell &shell, int argc, const ShellArguments &argv) {
     shell.printf(SPIFFS.remove(argv[1])?"Done":"Failed");
 }
 ShellCommand(rm, "<filename> - SPIFFS: Delete file", cliRm);
+
+void cliVersion(Shell &shell, int argc, const ShellArguments &argv) {
+  shell.printf_P("modbus-SmartHome %s", VERSION);
+}
+ShellCommand(version, "Show build version", cliVersion);
 
 int passCheck(const char *username, const char *password) {
   return 0;
