@@ -7,8 +7,8 @@
  ESP8266WebServer* server;
 #else
  #include <SPIFFS.h>
- #include <ESPWebServer.h>
- ESPWebServer* server;
+ #include <WebServer.h>
+ WebServer* server;
 #endif
 
 #include <detail/RequestHandlersImpl.h> // for StaticRequestHandler::getContentType(path);
@@ -55,7 +55,7 @@ uint32_t webInit() {
  #ifdef ESP8266
   server = new ESP8266WebServer(80);
  #else
-  server = new ESPWebServer(80);
+  server = new WebServer(80);
  #endif
   server->begin();
   server->onNotFound(handleGenericFile);

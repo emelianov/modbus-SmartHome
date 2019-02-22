@@ -42,7 +42,13 @@ uint32_t queryRemoteIreg() {
   uint16_t thisTaskId = taskId();
   std::vector<register_t>::iterator it = std::find_if(regs.begin(), regs.end(), [thisTaskId](const register_t& d) {return d.taskId == thisTaskId;});
   if (it != regs.end()) {
-    mb->pullIreg(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
+    if (mb->isConnected(it->ip)) {
+      mb->pullIreg(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
+    } else {
+      Serial.println(ESP.getFreeHeap());
+      mb->connect(it->ip);
+      Serial.println(ESP.getFreeHeap());
+    }
     return it->interval;
   }
   return RUN_DELETE;
@@ -356,6 +362,68 @@ bool saveDefaults(TAddress reg, uint16_t value, bool erase = false) {
   return false;
 }
 
+bool readDefaults() {
+  cJSON* json = nullptr;
+  cJSON* arr = nullptr;
+  File configFile = SPIFFS.open(CFG_REGS, "r");
+  if (configFile) {
+    char* data = (char*)malloc(configFile.size() + 1);
+    if (data) {
+      if (configFile.read((uint8_t*)data, configFile.size()) == configFile.size()) {
+        data[configFile.size()] = '/0';
+        TDEBUG("mb: default %d bytes read\n", configFile.size());
+        json = cJSON_Parse(data);
+      }
+      free(data);
+    }
+    configFile.close();
+  }
+  if (!json) return false;
+  cJSON* address;
+  cJSON* value;
+  cJSON* entry;
+  arr = cJSON_GetObjectItemCaseSensitive(json, "COIL");
+  if (arr)
+  cJSON_ArrayForEach(entry, arr) {
+    address = cJSON_GetObjectItemCaseSensitive(entry, "address");
+    value = cJSON_GetObjectItemCaseSensitive(entry, "value");
+    if (value && address && cJSON_IsNumber(value) && cJSON_IsNumber(address)) {
+      mb->addCoil(address->valueint, (value->valueint == 1));
+    }
+  }
+  arr = cJSON_GetObjectItemCaseSensitive(json, "ISTS");
+  if (arr)
+  cJSON_ArrayForEach(entry, arr) {
+    address = cJSON_GetObjectItemCaseSensitive(entry, "address");
+    value = cJSON_GetObjectItemCaseSensitive(entry, "value");
+    if (value && address && cJSON_IsNumber(value) && cJSON_IsNumber(address)) {
+      mb->addIsts(address->valueint, (value->valueint == 1));
+    }
+  }
+  arr = cJSON_GetObjectItemCaseSensitive(json, "HREG");
+  if (arr)
+  cJSON_ArrayForEach(entry, arr) {
+    address = cJSON_GetObjectItemCaseSensitive(entry, "address");
+    value = cJSON_GetObjectItemCaseSensitive(entry, "value");
+    if (value && address && cJSON_IsNumber(value) && cJSON_IsNumber(address)) {
+      mb->addHreg(address->valueint, value->valueint);
+    }
+  }
+  arr = cJSON_GetObjectItemCaseSensitive(json, "IREG");
+  if (arr)
+  cJSON_ArrayForEach(entry, arr) {
+    address = cJSON_GetObjectItemCaseSensitive(entry, "address");
+    value = cJSON_GetObjectItemCaseSensitive(entry, "value");
+    if (value && address && cJSON_IsNumber(value) && cJSON_IsNumber(address)) {
+      mb->addIreg(address->valueint, value->valueint);
+    }
+  }
+  cleanup:
+  cJSON_Delete(json);
+  return true;
+}
+
+
 
 bool cbRead(Modbus::ResultCode event, uint16_t transactionId, void* data) {
   Serial.print("Read 3: ");
@@ -376,13 +444,14 @@ uint32_t readRemote() {
 uint32_t modbusInit() {
   mb = new ModbusIP();
   mb->onConnect(connect);
+  readDefaults();
   readModbus();
   mb->slave();
   mb->master();
-  mb->addHreg(10, 0, 5);
-  mb->onSetHreg(10, cb10, 5);
+  //mb->addHreg(10, 0, 5);
+  //mb->onSetHreg(10, cb10, 5);
 //  taskAdd(readRemote);
-  mb->connect(IPAddress(192,168,30,13));
+  //mb->connect(IPAddress(192,168,30,13));
   taskAdd(modbusLoop);
   return RUN_DELETE;
 }
