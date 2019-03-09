@@ -347,7 +347,9 @@ void cliSlaveIreg(Shell &shell, int argc, const ShellArguments &argv) {
   IPAddress ip;
   if (argc < 2) return;
   ip.fromString(argv[1]);
-  mb->readIreg(ip, atoi(argv[2]), &dataRead, 1, cbReadCli);
+  if (!mb->readIreg(ip, atoi(argv[2]), &dataRead, 1, cbReadCli)) {
+    shell.printf_P("Modbus: read error\n");
+  }
 }
 ShellCommand(slaveireg, "<ip> <ireg> - Modbus: Read slave Ireg", cliSlaveIreg);
 void cliSlaveCoil(Shell &shell, int argc, const ShellArguments &argv) {
@@ -449,8 +451,10 @@ ShellCommand(uptime, "- System uptime", cliUptime);
 
 // SPIFFS - related
 void cliFormat(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 0 && argv.count() > 0 && strcmp(argv[1], "force") == 0) {
+  if (argc > 1 && strcmp(argv[1], "force") == 0) {
+    SPIFFS.end();
     SPIFFS.format();
+    SPIFFS.begin();
     shell.printf_P("Done\n");
   }
   shell.printf_P("All data to be lost. Use 'format force' to precess\n");
@@ -531,7 +535,7 @@ void cliRm(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(rm, "<filename> - SPIFFS: Delete file", cliRm);
 
 void cliVersion(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.printf_P("modbus-SmartHome %s", VERSION);
+  shell.printf_P("modbus-SmartHome  -  %s\n", VERSION);
 }
 ShellCommand(version, "Show build version", cliVersion);
 

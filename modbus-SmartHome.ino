@@ -5,7 +5,7 @@
 
 #define BUSY ;
 #define IDLE ;
-#define VERSION "0.1 - " __DATE__
+#define VERSION "0.1  -  " __DATE__
 #define TDEBUG(format, ...) Serial.printf_P(PSTR(format), ##__VA_ARGS__);
 #define MEM_LOW 4096
 
