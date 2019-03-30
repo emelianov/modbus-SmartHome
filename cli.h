@@ -22,6 +22,9 @@ pullists
 pushcoil
 pushhreg
 pulldelete
+wllist (?)
+wlconnect
+ip
 */
 
 #include <Wire.h>
@@ -73,6 +76,33 @@ void cliPing(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(ping, "<ip> - Ping", cliPing);
 #endif
+/*
+int8_t numNetworks = -2;
+uint32_t wlScanWait() {
+  numNetworks = WiFi.scanComplete();
+  if (numNetworks > 0) {
+    Serial.println("Connecting...");
+    WiFi.begin();
+    return RUN_DELETE;
+  }
+  Serial.print(".");
+  return 1000;
+}
+void cliWlScan(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 1 && strcmp_P(argv[1], PSTR("force")) == 0) {
+    WiFi.disconnect();
+    WiFi.scanNetworks(true);
+    taskAddWithDelay(wlScanWait, 1000);
+    return;
+  }
+  for (int i = 0; i < numNetworks; i++) {
+      shell.printf("%d: %s, Ch:%d (%ddBm) %s\n", i+1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+  }
+  WiFi.scanDelete();
+  numNetworks = -2;
+}
+ShellCommand(wlscan, "[ force] - Scan Wi-Fi networks", cliWlScan);
+*/
 
 void clii2cScan(Shell &shell, int argc, const ShellArguments &argv) {
   uint8_t error, address;
@@ -186,7 +216,7 @@ void cliDsName(Shell &shell, int argc, const ShellArguments &argv) {
     if (dev) {
       dev->name = "";
       for (uint8_t i = 2; i < argc; i++)
-        dev->name += argv[i];
+        dev->name += " " + String(argv[i]);
     }
   }
 }
@@ -344,7 +374,7 @@ void cliIreg(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(ireg, "<ireg>[ <value>|delete][ save] - Modbus: Ireg get/set/add/remove", cliIreg);
 
-void cliConnect(Shell &shell, int argc, const ShellArguments &argv) {
+void cliSlave(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc < 2) {
     shell.printf_P(PSTR("Wrong arguments\n"));
     return;
@@ -357,7 +387,21 @@ void cliConnect(Shell &shell, int argc, const ShellArguments &argv) {
   if (!mb->connect(ip))
     shell.printf_P(PSTR("Modbus: Connection error\n"));
 }
-ShellCommand(connect, "<ip> - Modbus: Connect to slave", cliConnect);
+ShellCommand(slave, "<ip> - Modbus: Connect to slave", cliSlave);
+
+void cliSlaveDisconnect(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
+  IPAddress ip;
+  ip.fromString(argv[1]);
+  if (!mb->isConnected(ip)) {
+    shell.printf_P(PSTR("Modbus: Not connected\n"));
+  }
+  mb->disconnect(ip);
+}
+ShellCommand(slavedisconnect, "<ip> - Modbus: Disconnect from slave", cliSlaveDisconnect);
 
 uint16_t dataRead;
 bool cbReadCli(Modbus::ResultCode event, uint16_t transactionId, void* data) {
@@ -448,7 +492,7 @@ uint32_t serial2cli() {
     }
     Serial.write(data);
   }
-  return 100;
+  return 20;
 }
 void cliSerial(Shell &shell, int argc, const ShellArguments &argv) {
   if (argv.count() > 1) {
@@ -572,12 +616,27 @@ ShellCommand(hexdump, "<filename> - SPIFFS: View file content in Hex", cliHexdum
 
 void cliRm(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc > 0)
-    shell.printf(SPIFFS.remove(argv[1])?"Done":"Failed");
+    shell.printf(SPIFFS.remove(argv[1])?"":"Failed\n");
 }
 ShellCommand(rm, "<filename> - SPIFFS: Delete file", cliRm);
 
+void cliCp(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc < 3) return;
+  File src = SPIFFS.open(argv[1], "r");
+  File dst = SPIFFS.open(argv[2], "w");
+  if (!(src && dst)) {
+    shell.printf_P(PSTR("IO error\n"));
+  } else {
+    uint8_t b;
+    while (src.read(&b, 1) == 1) dst.write(&b, 1);
+  }
+  if (src) src.close();
+  if (dst) dst.close(); 
+}
+ShellCommand(cp, "<source> <destination> - SPIFFS: Copy file", cliCp);
+
 void cliVersion(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.printf_P("modbus-SmartHome %s", VERSION);
+  shell.printf_P("modbus-SmartHome %s\n", VERSION);
 }
 ShellCommand(version, "- Show build version", cliVersion);
 
@@ -613,7 +672,7 @@ uint32_t cliLoop() {
 
     // Perform periodic shell processing on the active client.
     shell.loop();
-    return 50;
+    return haveClient?50:200;
 }
 
 uint32_t cliInit() {

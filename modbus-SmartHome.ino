@@ -24,7 +24,7 @@ extern String sysName;
 #include "cli.h"
 #include "update.h"
 
-ModbusIP* mb;
+ModbusIP<EthernetClient, EthernetServer>* mb;
 uint32_t mem = 0;
 uint32_t tm = 0;
 uint32_t restartESP() {

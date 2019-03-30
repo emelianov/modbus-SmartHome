@@ -2,8 +2,9 @@
 
 #define CFG_GPIO "/gpio.json"
 #define GPIO_MAX_COUNT 16
+#define GPIO_MAX_LOCAL_ISTS 16
 
-extern ModbusIP* mb;
+extern ModbusIP<EthernetClient, EthernetServer>* mb;
 
 struct gpio_t {
   String name = "";
@@ -11,9 +12,44 @@ struct gpio_t {
   uint8_t pin = 0;
   bool inverse = false;
   TAddress reg;
+  uint16_t* flag = nullptr;
 };
 
 std::vector<gpio_t> gpios;
+uint16_t click = 50;
+uint16_t press = 250;
+uint16_t longPress = 2000;
+uint16_t veryLong = 10000;
+enum swType {DIRECT, CLICK, PRESS, DOUBLE_CLICK, LONG_PRESS, TRIPLE_CLICK, VERY_LONG_PRESS};
+struct intrPress {
+  uint16_t flag = 0;
+  uint32_t timeStamp = 0;
+};
+
+uint16_t ists[GPIO_MAX_LOCAL_ISTS];
+/*
+template <I>
+void gpioHandler() {
+  uint8_t state = digitalRead(ists[I]);
+  if (state == LOW) {
+    ists[I].timeStamp = millis();
+    return;
+  }
+  timeStamp = millis() - timeStamp;
+  ists[I].flag++;
+};
+
+template <I>
+void gpioDirect() {
+  uint8_t state = digitalRead(ists[I]);
+  if (state == LOW) {
+    ists[I].timeStamp = millis();
+    return;
+  }
+  timeStamp = millis() - timeStamp;
+  ists[I].flag++;
+};
+*/
 
 uint16_t cbDigitalRead(TRegister* reg, uint16_t val) {
   std::vector<gpio_t>::iterator it = std::find_if(gpios.begin(), gpios.end(), [reg](const gpio_t& d) {return d.reg == reg->address;});

@@ -1,4 +1,5 @@
 #pragma once
+#include <Ethernet.h>
 #include <ModbusIP_ESP8266.h>
 #include <FS.h>
 #include <cJSON.h>
@@ -8,7 +9,7 @@
 #define MB_IDLE 10
 #define PULL_MAX_COUNT 10
 
-extern ModbusIP* mb;
+extern ModbusIP<EthernetClient, EthernetServer>* mb;
 
 uint32_t modbusLoop() {
   mb->task();
@@ -442,7 +443,8 @@ uint32_t readRemote() {
 }
 
 uint32_t modbusInit() {
-  mb = new ModbusIP();
+  //mb = new ModbusIP<EthernetClient, EthernetServer>*();
+  mb = new ModbusIP<EthernetClient, EthernetServer>();
   mb->onConnect(connect);
   readDefaults();
   readModbus();
