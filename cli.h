@@ -1,23 +1,29 @@
 //////////////////////////////////////////
-// ESP8266/ESP32 Modbus Temperature sensor
+// ESP8266/ESP32 Modbus SmartHome Device
 // (c)2018, a.m.emelianov@gmail.com
 //
 // CLI interface
 //
 #pragma once
+
 /*
 TODO:
 i2cscan[ <sda> <scl>][ <rate>]
 i2cread <id> <bytes>
 i2cwrite <id> <byte>
+ntp
 cp
 mv
-tftp
-date
-gpioname
+md5
+gpiomapname
+gpiomapdelete
 pullname
-Fix dsname
+pullists
+pushcoil
+pushhreg
+pulldelete
 */
+
 #include <Wire.h>
 #ifdef ESP8266
  #include <ESP8266WiFi.h>
@@ -117,18 +123,18 @@ void cliGpioMapCoil(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(gpiomapcoil, "<pin> <local_coil> - GPIO: Map to Coil", cliGpioMapCoil);
 
-void cliGpioList(Shell &shell, int argc, const ShellArguments &argv) {
+void cliGpioMapList(Shell &shell, int argc, const ShellArguments &argv) {
   shell.printf_P(PSTR("GPIO\t\tReg\n"));
   for (auto &s : gpios) {
     shell.printf_P(PSTR("%d\t %s \t%s\t%d\t'%s\n"), s.pin, (s.mode == OUTPUT)?"<=":"=>", regTypeToStr(s.reg), s.reg.address, s.name.c_str());
   }
 }
-ShellCommand(gpiolist, "- GPIO: List mappings", cliGpioList);
+ShellCommand(gpiomaplist, "- GPIO: List mappings", cliGpioMapList);
 
-void cliGpioSave(Shell &shell, int argc, const ShellArguments &argv) {
+void cliGpioMapSave(Shell &shell, int argc, const ShellArguments &argv) {
   shell.println(saveGpio()?"Done":"Error");
 }
-ShellCommand(gpiosave, "- GPIO: Save mappings", cliGpioSave);
+ShellCommand(gpiomapsave, "- GPIO: Save mappings", cliGpioMapSave);
 
 void cliDsList(Shell &shell, int argc, const ShellArguments &argv) {
   shell.printf_P(PSTR("ID\t\t\t\tLocal\n"));
@@ -178,14 +184,19 @@ void cliDsName(Shell &shell, int argc, const ShellArguments &argv) {
     }
     dev = deviceFind(addr);
     if (dev) {
-      dev->name = argv[2];
+      dev->name = "";
+      for (uint8_t i = 2; i < argc; i++)
+        dev->name += argv[i];
     }
   }
 }
 ShellCommand(dsname, "<ID> <name> - DS1820: Set sensor name", cliDsName);
 
 void cliPullHreg(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 5) return;
+  if (argc < 5) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   IPAddress ip;
   ip.fromString(argv[1]);
   shell.println(addPull(ip, HREG(atoi(argv[2])), IREG(atoi(argv[3])), atoi(argv[4])));
@@ -193,7 +204,10 @@ void cliPullHreg(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(pullhreg, "<ip> <slave_hreg> <local_ireg> <interval> - Modbus: Pull slave Hreg to local Ireg", cliPullHreg);
 
 void cliPullIreg(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 5) return;
+  if (argc < 5) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   IPAddress ip;
   ip.fromString(argv[1]);
   shell.println(addPull(ip, IREG(atoi(argv[2])), IREG(atoi(argv[3])), atoi(argv[4])));
@@ -201,7 +215,10 @@ void cliPullIreg(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(pullireg, "<ip> <slave_ireg> <local_ireg> <interval> - Modbus: Pull Ireg", cliPullIreg);
 
 void cliPullCoil(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 5) return;
+  if (argc < 5) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   IPAddress ip;
   ip.fromString(argv[1]);
   shell.println(addPull(ip, COIL(atoi(argv[2])), ISTS(atoi(argv[3])), atoi(argv[4])));
@@ -209,7 +226,10 @@ void cliPullCoil(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(pullcoil, "<ip> <slave_coil> <local_ists> <interval> - Modbus: Pull slave Coil to local Ists", cliPullCoil);
 
 void cliPushIsts(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 5) return;
+  if (argc < 5) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   IPAddress ip;
   ip.fromString(argv[2]);
   shell.println(addPull(ip, COIL(atoi(argv[3])), ISTS(atoi(argv[1])), atoi(argv[4]), 1, false));
@@ -217,7 +237,10 @@ void cliPushIsts(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(pushists, "<local_ists> <ip> <slave_coil> <interval> - Modbus: Push local Ists to slave Coil", cliPushIsts);
 
 void cliPushIreg(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 5) return;
+  if (argc < 5) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   IPAddress ip;
   ip.fromString(argv[2]);
   shell.println(addPull(ip, HREG(atoi(argv[3])), IREG(atoi(argv[1])), atoi(argv[4]), 1, false));
@@ -230,7 +253,10 @@ void cliPullSave(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(pullsave, "- Modbus: Save Pull/Push registers", cliPullSave);
 
 void cliHreg(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 2) return;
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   uint16_t reg = atoi(argv[1]);
   bool del = false;
   uint16_t val = 0;
@@ -250,7 +276,10 @@ void cliHreg(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(hreg, "<hreg>[ <value>|delete][ save] - Modbus: Hreg get/set/add/delete", cliHreg);
 
 void cliCoil(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 2) return;
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   uint16_t reg = atoi(argv[1]);
   bool del = false;
   bool val = false;
@@ -270,7 +299,10 @@ void cliCoil(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(coil, "<coil>[ <0|1>|delete][ save] - Modbus: Coil get/set/add/delete", cliCoil);
 
 void cliIsts(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 2) return;
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   uint16_t reg = atoi(argv[1]);
   bool del = false;
   bool val = false;
@@ -290,7 +322,10 @@ void cliIsts(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(ists, "<ists>[ <0|1>|delete][ save] - Modbus: Ists get/set/add/remove", cliIsts);
 
 void cliIreg(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc < 2) return;
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   uint16_t reg = atoi(argv[1]);
   bool del = false;
   uint16_t val = false;
@@ -310,15 +345,17 @@ void cliIreg(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(ireg, "<ireg>[ <value>|delete][ save] - Modbus: Ireg get/set/add/remove", cliIreg);
 
 void cliConnect(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 1) {
-    IPAddress ip;
-    ip.fromString(argv[1]);
-    if (mb->isConnected(ip)) {
-      shell.printf_P(PSTR("Modbus: Already connected\n"));
-    }
-    if (!mb->connect(ip))
-      shell.printf_P(PSTR("Modbus: Connection error\n"));
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
   }
+  IPAddress ip;
+  ip.fromString(argv[1]);
+  if (mb->isConnected(ip)) {
+    shell.printf_P(PSTR("Modbus: Already connected\n"));
+  }
+  if (!mb->connect(ip))
+    shell.printf_P(PSTR("Modbus: Connection error\n"));
 }
 ShellCommand(connect, "<ip> - Modbus: Connect to slave", cliConnect);
 
@@ -333,7 +370,10 @@ bool cbReadCli(Modbus::ResultCode event, uint16_t transactionId, void* data) {
 }
 void cliSlaveHreg(Shell &shell, int argc, const ShellArguments &argv) {
   IPAddress ip;
-  if (argc < 2) return;
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   ip.fromString(argv[1]);
   if (argc > 3) {
     dataRead = atoi(argv[3]);
@@ -345,7 +385,10 @@ void cliSlaveHreg(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(slavehreg, "<ip> <hreg>[ <value>] - Modbus: Read/Write slave Hreg", cliSlaveHreg);
 void cliSlaveIreg(Shell &shell, int argc, const ShellArguments &argv) {
   IPAddress ip;
-  if (argc < 2) return;
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   ip.fromString(argv[1]);
   if (!mb->readIreg(ip, atoi(argv[2]), &dataRead, 1, cbReadCli)) {
     shell.printf_P("Modbus: read error\n");
@@ -355,7 +398,7 @@ ShellCommand(slaveireg, "<ip> <ireg> - Modbus: Read slave Ireg", cliSlaveIreg);
 void cliSlaveCoil(Shell &shell, int argc, const ShellArguments &argv) {
   IPAddress ip;
   if (argc < 2) {
-    shell.println("Wrong arguments count");
+    shell.printf_P(PSTR("Wrong arguments\n"));
     return;
   }
   ip.fromString(argv[1]);
@@ -373,7 +416,10 @@ void cliSlaveCoil(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(slavecoil, "<ip> <coil>[ <0|1>] - Modbus: Read/Write slave Coil", cliSlaveCoil);
 void cliSlaveIsts(Shell &shell, int argc, const ShellArguments &argv) {
   IPAddress ip;
-  if (argc < 2) return;
+  if (argc < 2) {
+    shell.printf_P(PSTR("Wrong arguments\n"));
+    return;
+  }
   ip.fromString(argv[1]);
   mb->readIsts(ip, atoi(argv[2]), (bool*)&dataRead, 1, cbReadCli);
 }
@@ -451,11 +497,9 @@ ShellCommand(uptime, "- System uptime", cliUptime);
 
 // SPIFFS - related
 void cliFormat(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 1 && strcmp(argv[1], "force") == 0) {
-    SPIFFS.end();
-    SPIFFS.format();
-    SPIFFS.begin();
-    shell.printf_P("Done\n");
+  if (argc > 1 && strcmp_P(argv[1], PSTR("force")) == 0) {
+    if (SPIFFS.format()) shell.printf_P("Done\n");
+    return;
   }
   shell.printf_P("All data to be lost. Use 'format force' to precess\n");
 }
@@ -537,7 +581,13 @@ ShellCommand(rm, "<filename> - SPIFFS: Delete file", cliRm);
 void cliVersion(Shell &shell, int argc, const ShellArguments &argv) {
   shell.printf_P("modbus-SmartHome  -  %s\n", VERSION);
 }
-ShellCommand(version, "Show build version", cliVersion);
+ShellCommand(version, "- Show build version", cliVersion);
+
+void cliDate(Shell &shell, int argc, const ShellArguments &argv) {
+  const time_t t = time(nullptr);
+  shell.print(ctime(&t));
+}
+ShellCommand(date, "- Show date/time", cliDate);
 
 int passCheck(const char *username, const char *password) {
   return 0;
@@ -552,6 +602,7 @@ uint32_t cliLoop() {
         client = console.available();
         if (client) {
             haveClient = true;
+            //(Stream)client.setTimeout(50);
             shell.begin(client, 5);
         }
     } else if (!client.connected()) {
@@ -564,7 +615,7 @@ uint32_t cliLoop() {
 
     // Perform periodic shell processing on the active client.
     shell.loop();
-    return 100;
+    return 50;
 }
 
 uint32_t cliInit() {

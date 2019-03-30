@@ -1,5 +1,5 @@
 //////////////////////////////////////////
-// ESP8266/ESP32 Modbus Temperature sensor
+// ESP8266/ESP32 Modbus SmartHome Device
 // (c)2018, a.m.emelianov@gmail.com
 //
 
@@ -57,23 +57,6 @@ void setup(void)
 }
 
 void loop() { 
-/*  if (ESP.getFreeHeap() != mem) {
-      mem = ESP.getFreeHeap();
-      TDEBUG("1: %d - %d\n", mem, micros() / 1000 - tm);
-      tm = micros() / 1000;
-  }
-  taskExec();
-  if (ESP.getFreeHeap() != mem) {
-      TDEBUG("2: %d - %d\n", mem, micros() / 1000 - tm);
-      tm = micros() / 1000;
-  }
-  yield();
-  if (ESP.getFreeHeap() != mem) {
-      mem = ESP.getFreeHeap();
-      TDEBUG("3: %d - %d\n", mem, micros() / 1000 - tm);
-      tm = micros() / 1000;
-  }
-*/
   taskExec();
   yield();
 }

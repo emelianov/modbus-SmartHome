@@ -4,7 +4,7 @@
 #ifdef ESP8266
  extern ESP8266WebServer* server;
 #else
- extern ESPWebServer* server;
+ extern WebServer* server;
  #include <Update.h>
  #define ESP32_SKETCH_SIZE 1310720
 #endif
