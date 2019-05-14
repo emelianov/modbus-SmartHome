@@ -16,7 +16,7 @@
 #define DEFAULT_NAME "MR1"
 #define DEFAULT_PASSWORD "P@ssw0rd"
 
-extern ModbusIP<EthernetClient, EthernetServer>* mb;
+extern ModbusIP* mb;
 
 String sysName = DEFAULT_NAME;
 String sysPassword = DEFAULT_PASSWORD;

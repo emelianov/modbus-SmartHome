@@ -4,7 +4,7 @@
 #define GPIO_MAX_COUNT 16
 #define GPIO_MAX_LOCAL_ISTS 16
 
-extern ModbusIP<EthernetClient, EthernetServer>* mb;
+extern ModbusIP* mb;
 
 struct gpio_t {
   String name = "";

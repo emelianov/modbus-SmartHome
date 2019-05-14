@@ -103,7 +103,7 @@ void cliWlScan(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(wlscan, "[ force] - Scan Wi-Fi networks", cliWlScan);
 */
-
+/*
 void clii2cScan(Shell &shell, int argc, const ShellArguments &argv) {
   uint8_t error, address;
   uint8_t nDevices = 0;
@@ -122,7 +122,7 @@ void clii2cScan(Shell &shell, int argc, const ShellArguments &argv) {
     shell.printf_P(PSTR("No I2C devices found\n"));
 }
 ShellCommand(i2cscan, "- I2C: Scan bus", clii2cScan);
-
+*/
 void cliGpio(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc > 2) {
     digitalWrite(atoi(argv[1]), atoi(argv[2]));
@@ -132,6 +132,7 @@ void cliGpio(Shell &shell, int argc, const ShellArguments &argv) {
   }
 }
 ShellCommand(gpio, "<nr>[ <0|1>] - GPIO: Read/Write", cliGpio);
+
 void cliGpioMode(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc > 2) {
     pinMode(atoi(argv[1]), strcmp(argv[2], "input") == 0?INPUT:OUTPUT);
@@ -434,7 +435,9 @@ void cliSlaveIreg(Shell &shell, int argc, const ShellArguments &argv) {
     return;
   }
   ip.fromString(argv[1]);
-  mb->readIreg(ip, atoi(argv[2]), &dataRead, 1, cbReadCli);
+  if (!mb->readIreg(ip, atoi(argv[2]), &dataRead, 1, cbReadCli)) {
+    shell.printf_P("Modbus: read error\n");
+  }
 }
 ShellCommand(slaveireg, "<ip> <ireg> - Modbus: Read slave Ireg", cliSlaveIreg);
 void cliSlaveCoil(Shell &shell, int argc, const ShellArguments &argv) {
@@ -636,7 +639,7 @@ void cliCp(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(cp, "<source> <destination> - SPIFFS: Copy file", cliCp);
 
 void cliVersion(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.printf_P("modbus-SmartHome %s\n", VERSION);
+  shell.printf_P("modbus-SmartHome  -  %s\n", VERSION);
 }
 ShellCommand(version, "- Show build version", cliVersion);
 

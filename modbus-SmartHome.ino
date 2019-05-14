@@ -5,7 +5,7 @@
 
 #define BUSY ;
 #define IDLE ;
-#define VERSION "0.1.0 - " __DATE__
+#define VERSION "0.1  -  " __DATE__
 #define TDEBUG(format, ...) Serial.printf_P(PSTR(format), ##__VA_ARGS__);
 #define MEM_LOW 4096
 
@@ -24,7 +24,7 @@ extern String sysName;
 #include "cli.h"
 #include "update.h"
 
-ModbusIP<EthernetClient, EthernetServer>* mb;
+ModbusIP* mb;
 uint32_t mem = 0;
 uint32_t tm = 0;
 uint32_t restartESP() {
@@ -40,11 +40,7 @@ uint32_t watchDog() {
 void setup(void)
 {
  #ifdef TDEBUG
- #ifdef ESP8266
-  Serial.begin(74880);
- #else
   Serial.begin(115200);
- #endif
  #endif
   SPIFFS.begin();
   wifiInit();    // Connect to WiFi network & Start discovery services

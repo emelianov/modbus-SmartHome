@@ -9,7 +9,7 @@
 #define MB_IDLE 10
 #define PULL_MAX_COUNT 10
 
-extern ModbusIP<EthernetClient, EthernetServer>* mb;
+extern ModbusIP* mb;
 
 uint32_t modbusLoop() {
   mb->task();
@@ -55,12 +55,32 @@ uint32_t queryRemoteIreg() {
   return RUN_DELETE;
 }
 
+uint32_t queryRemoteIsts() {
+  uint16_t thisTaskId = taskId();
+  std::vector<register_t>::iterator it = std::find_if(regs.begin(), regs.end(), [thisTaskId](const register_t& d) {return d.taskId == thisTaskId;});
+  if (it != regs.end()) {
+    if (mb->isConnected(it->ip)) {
+      mb->pullIsts(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
+    } else {
+      Serial.println(ESP.getFreeHeap());
+      mb->connect(it->ip);
+      Serial.println(ESP.getFreeHeap());
+    }
+    return it->interval;
+  }
+  return RUN_DELETE;
+}
+
 uint32_t queryRemoteHreg() {
   uint16_t thisTaskId = taskId();
   std::vector<register_t>::iterator it = std::find_if(regs.begin(), regs.end(), [thisTaskId](const register_t& d) {return d.taskId == thisTaskId;});
   if (it != regs.end()) {
     if (mb->isConnected(it->ip)) {
-      mb->pullHregToIreg(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
+      if (it->pull) {
+        mb->pullHregToIreg(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
+      } else {
+        mb->pushIregToHreg(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
+      }
     } else {
       Serial.println(ESP.getFreeHeap());
       mb->connect(it->ip);
@@ -133,7 +153,7 @@ uint16_t addPull(IPAddress ip, TAddress remote, TAddress local, uint32_t interva
     reg.taskId = taskAdd(queryRemoteCoil);
   break;
   case TAddress::ISTS:
-  //  reg.taskId = taskAdd(queryRemoteIsts);
+    reg.taskId = taskAdd(queryRemoteIsts);
   break;
   }
   reg.pull = pull;
@@ -278,8 +298,7 @@ bool readModbus() {
               if (!item || !cJSON_IsString(item)) continue;
               TDEBUG("mb: ip %s", item->valuestring);
               reg.ip.fromString(item->valuestring);
-              addPull(reg.ip, reg.remote, reg.reg, reg.interval);
-              //regs.push_back(reg);
+              addPull(reg.ip, reg.remote, reg.reg, reg.interval, reg.count, reg.pull);
             }
             //cJSON_Delete(arr);
           }
@@ -443,8 +462,8 @@ uint32_t readRemote() {
 }
 
 uint32_t modbusInit() {
-  //mb = new ModbusIP<EthernetClient, EthernetServer>*();
-  mb = new ModbusIP<EthernetClient, EthernetServer>();
+  //mb = new ModbusIP*();
+  mb = new ModbusIP();
   mb->onConnect(connect);
   readDefaults();
   readModbus();
