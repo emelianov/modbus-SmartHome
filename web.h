@@ -28,9 +28,27 @@ uint32_t webLoop() {
   return 100;
 }
 
+String getContentType(String filename){
+  if(server->hasArg(F("download"))) return "application/octet-stream";
+  else if(filename.endsWith(F(".htm"))) return "text/html";
+  else if(filename.endsWith(F(".html"))) return "text/html";
+  else if(filename.endsWith(F(".css"))) return "text/css";
+  else if(filename.endsWith(F(".js"))) return "application/javascript";
+  else if(filename.endsWith(F(".png"))) return "image/png";
+  else if(filename.endsWith(F(".gif"))) return "image/gif";
+  else if(filename.endsWith(F(".jpg"))) return "image/jpeg";
+  else if(filename.endsWith(F(".ico"))) return "image/x-icon";
+  else if(filename.endsWith(F(".xml"))) return "text/xml";
+  else if(filename.endsWith(F(".pdf"))) return "application/x-pdf";
+  else if(filename.endsWith(F(".zip"))) return "application/x-zip";
+  else if(filename.endsWith(F(".gz"))) return "application/x-gzip";
+  return "text/plain";
+}
+
 bool handleFileRead(String path){
   if(path.endsWith("/")) path += "index.html";
-  String contentType = StaticRequestHandler::getContentType(path);
+  //String contentType = StaticRequestHandler::getContentType(path);
+  String contentType = getContentType(path);
   //String pathWithGz = path + ".gz";
   if(SPIFFS.exists(path + ".gz"))
     path += ".gz";

@@ -8,6 +8,7 @@
 #define VERSION "0.2  -  " __DATE__
 #define TDEBUG(format, ...) Serial.printf_P(PSTR(format), ##__VA_ARGS__);
 #define MEM_LOW 4096
+#define WS2812
 
 extern String sysName;
 #ifdef ESP8266
@@ -23,6 +24,10 @@ extern String sysName;
 #include "gpio.h"
 #include "cli.h"
 #include "update.h"
+#if defined(WS2812) && defined(ESP8266)
+ #include "leds.h"
+#endif
+
 
 ModbusIP* mb;
 uint32_t mem = 0;
@@ -50,6 +55,9 @@ void setup(void)
   taskAdd(updateInit);
   taskAdd(dsInit);      // Start 1-Wire temperature sensors
   taskAdd(gpioInit);
+  #if defined(WS2812) && defined(ESP8266)
+   taskAdd(ledsInit);
+  #endif
 }
 
 void loop() { 
