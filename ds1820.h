@@ -387,3 +387,59 @@ uint32_t dsInit() {
   Serial.println(ESP.getFreeHeap());
   return RUN_DELETE;
 }
+
+void cliDsList(Shell &shell, int argc, const ShellArguments &argv) {
+  shell.printf_P(PSTR("ID\t\t\t\tLocal\n"));
+  for (auto &s : sens) {
+    shell.printf_P(PSTR("%s\t => \tIREG\t%d\t'%s\n"), s.addressToString().c_str(), s.pin, s.name.c_str());
+  }
+}
+ShellCommand(dslist, "- DS1820: List sensors", cliDsList);
+
+void cliDsSave(Shell &shell, int argc, const ShellArguments &argv) {
+  shell.println(saveSensors()?"Done":"Error");
+}
+ShellCommand(dssave, "- DS1820: Save sensors", cliDsSave);
+
+void cliDsScan(Shell &shell, int argc, const ShellArguments &argv) {
+  shell.printf_P(PSTR("Found %d new sensors\n"), scanSensors());
+}
+ShellCommand(dsscan, "- DS1820: Scan for new sensors", cliDsScan);
+
+void cliDsMap(Shell &shell, int argc, const ShellArguments &argv) {
+  DeviceAddress addr;
+  sensor* dev;
+  char* tmp = "00";
+  if (argc > 2) {
+    for (uint8_t j = 0; j < 8; j++) {
+      tmp[0] = argv[1][j*2];
+      tmp[1] = argv[1][j*2 + 1];
+      addr[j] = strtol(tmp, NULL, 16);
+    }
+    dev = deviceFind(addr);
+    if (dev) {
+      dev->pin = atoi(argv[2]);
+    }
+  }
+}
+ShellCommand(dsmap, "<ID> <ireg> - DS1820: Map sensor to IREG", cliDsMap);
+
+void cliDsName(Shell &shell, int argc, const ShellArguments &argv) {
+  DeviceAddress addr;
+  sensor* dev;
+  char* tmp = "00";
+  if (argc > 2) {
+    for (uint8_t j = 0; j < 8; j++) {
+      tmp[0] = argv[1][j*2];
+      tmp[1] = argv[1][j*2 + 1];
+      addr[j] = strtol(tmp, NULL, 16);
+    }
+    dev = deviceFind(addr);
+    if (dev) {
+      dev->name = "";
+      for (uint8_t i = 2; i < argc; i++)
+        dev->name += " " + String(argv[i]);
+    }
+  }
+}
+ShellCommand(dsname, "<ID> <name> - DS1820: Set sensor name", cliDsName);

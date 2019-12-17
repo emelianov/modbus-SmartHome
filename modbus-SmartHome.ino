@@ -6,9 +6,13 @@
 #define BUSY ;
 #define IDLE ;
 #define VERSION "0.2  -  " __DATE__
-#define TDEBUG(format, ...) Serial.printf_P(PSTR(format), ##__VA_ARGS__);
+#define TDEBUG(format, ...) //Serial.printf_P(PSTR(format), ##__VA_ARGS__);
 #define MEM_LOW 4096
 #define WS2812
+#define DEFAULT_NAME "MR1"
+#define DEFAULT_PASSWORD "P@ssw0rd"
+String sysName = DEFAULT_NAME;
+String sysPassword = DEFAULT_PASSWORD;
 
 extern String sysName;
 #ifdef ESP8266
@@ -16,13 +20,14 @@ extern String sysName;
 #else
  #include <SPIFFS.h>
 #endif
+#include <Run.h>
 #include <ModbusIP_ESP8266.h>
 #include "wifi.h"
 #include "web.h"
 #include "mb.h"
+#include "cli.h"
 #include "ds1820.h"
 #include "gpio.h"
-#include "cli.h"
 #include "update.h"
 #if defined(WS2812) && defined(ESP8266)
  #include "leds.h"
@@ -45,7 +50,7 @@ uint32_t watchDog() {
 void setup(void)
 {
  #ifdef TDEBUG
-  Serial.begin(115200);
+  //Serial.begin(74880);
  #endif
   SPIFFS.begin();
   wifiInit();    // Connect to WiFi network & Start discovery services

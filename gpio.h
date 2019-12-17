@@ -240,3 +240,47 @@ uint32_t gpioInit() {
   readGpio();
   return RUN_DELETE;
 }
+
+void cliGpio(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 2) {
+    digitalWrite(atoi(argv[1]), atoi(argv[2]));
+  }
+  if (argc > 1) {
+    shell.println(digitalRead(atoi(argv[1])));
+  }
+}
+ShellCommand(gpio, "<nr>[ <0|1>] - GPIO: Read/Write", cliGpio);
+
+void cliGpioMode(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 2) {
+    pinMode(atoi(argv[1]), strcmp(argv[2], "input") == 0?INPUT:OUTPUT);
+  }
+}
+ShellCommand(gpiomode, "<nr> <input|output> - GPIO: Set mode", cliGpioMode);
+
+void cliGpioMapIsts(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 2) {
+    addGpio(ISTS(atoi(argv[2])), atoi(argv[1]), INPUT);
+  }
+}
+ShellCommand(gpiomapists, "<pin> <local_ists> - GPIO: Map to Ists", cliGpioMapIsts);
+
+void cliGpioMapCoil(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 2) {
+    addGpio(COIL(atoi(argv[2])), atoi(argv[1]), OUTPUT);
+  }
+}
+ShellCommand(gpiomapcoil, "<pin> <local_coil> - GPIO: Map to Coil", cliGpioMapCoil);
+
+void cliGpioMapList(Shell &shell, int argc, const ShellArguments &argv) {
+  shell.printf_P(PSTR("GPIO\t\tReg\n"));
+  for (auto &s : gpios) {
+    shell.printf_P(PSTR("%d\t %s \t%s\t%d\t'%s\n"), s.pin, (s.mode == OUTPUT)?"<=":"=>", regTypeToStr(s.reg), s.reg.address, s.name.c_str());
+  }
+}
+ShellCommand(gpiomaplist, "- GPIO: List mappings", cliGpioMapList);
+
+void cliGpioMapSave(Shell &shell, int argc, const ShellArguments &argv) {
+  shell.println(saveGpio()?"Done":"Error");
+}
+ShellCommand(gpiomapsave, "- GPIO: Save mappings", cliGpioMapSave);

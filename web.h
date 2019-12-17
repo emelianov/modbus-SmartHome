@@ -13,13 +13,7 @@
 
 #include <detail/RequestHandlersImpl.h> // for StaticRequestHandler::getContentType(path);
 
-#define DEFAULT_NAME "MR1"
-#define DEFAULT_PASSWORD "P@ssw0rd"
-
 extern ModbusIP* mb;
-
-String sysName = DEFAULT_NAME;
-String sysPassword = DEFAULT_PASSWORD;
 
 void handlePrivate();
 

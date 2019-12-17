@@ -36,7 +36,7 @@ uint32_t wifiWait() {
 }
 
 uint32_t wifiInit() {
-    WiFi.begin("EW", "iMpress6264");
+    WiFi.begin("E2", "fOlissio92");
     taskAdd(wifiWait);
     return RUN_DELETE;
 }

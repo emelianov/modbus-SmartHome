@@ -480,6 +480,18 @@ uint32_t modbusInit() {
   return RUN_DELETE;
 }
 
+char* regTypeToStr(TAddress reg) {
+  char* s = "COIL";
+  if (reg.isHreg()) {
+    s = "HREG";
+  } else if (reg.isIreg()) {
+    s = "IREG";
+  } else if (reg.isIsts()) {
+    s = "ISTS";
+  }
+  return s;
+}
+
 void cliPullHreg(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc < 5) {
     shell.printf_P(PSTR("Wrong arguments\n"));

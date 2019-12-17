@@ -45,18 +45,6 @@ WiFiClient client;
 bool haveClient = false;
 LoginShell shell;
 
-char* regTypeToStr(TAddress reg) {
-  char* s = "COIL";
-  if (reg.isHreg()) {
-    s = "HREG";
-  } else if (reg.isIreg()) {
-    s = "IREG";
-  } else if (reg.isIsts()) {
-    s = "ISTS";
-  }
-  return s;
-}
-
 #ifdef ESP8266
 uint32_t pingWait() {
   int8_t p = Ping.ping();
@@ -76,6 +64,7 @@ void cliPing(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(ping, "<ip> - Ping", cliPing);
 #endif
+
 /*
 int8_t numNetworks = -2;
 uint32_t wlScanWait() {
@@ -134,105 +123,7 @@ void cliExec(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(exec, "Execute batch command", cliExec);
 */
 
-void cliGpio(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 2) {
-    digitalWrite(atoi(argv[1]), atoi(argv[2]));
-  }
-  if (argc > 1) {
-    shell.println(digitalRead(atoi(argv[1])));
-  }
-}
-ShellCommand(gpio, "<nr>[ <0|1>] - GPIO: Read/Write", cliGpio);
 
-void cliGpioMode(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 2) {
-    pinMode(atoi(argv[1]), strcmp(argv[2], "input") == 0?INPUT:OUTPUT);
-  }
-}
-ShellCommand(gpiomode, "<nr> <input|output> - GPIO: Set mode", cliGpioMode);
-
-void cliGpioMapIsts(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 2) {
-    addGpio(ISTS(atoi(argv[2])), atoi(argv[1]), INPUT);
-  }
-}
-ShellCommand(gpiomapists, "<pin> <local_ists> - GPIO: Map to Ists", cliGpioMapIsts);
-
-void cliGpioMapCoil(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 2) {
-    addGpio(COIL(atoi(argv[2])), atoi(argv[1]), OUTPUT);
-  }
-}
-ShellCommand(gpiomapcoil, "<pin> <local_coil> - GPIO: Map to Coil", cliGpioMapCoil);
-
-void cliGpioMapList(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.printf_P(PSTR("GPIO\t\tReg\n"));
-  for (auto &s : gpios) {
-    shell.printf_P(PSTR("%d\t %s \t%s\t%d\t'%s\n"), s.pin, (s.mode == OUTPUT)?"<=":"=>", regTypeToStr(s.reg), s.reg.address, s.name.c_str());
-  }
-}
-ShellCommand(gpiomaplist, "- GPIO: List mappings", cliGpioMapList);
-
-void cliGpioMapSave(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.println(saveGpio()?"Done":"Error");
-}
-ShellCommand(gpiomapsave, "- GPIO: Save mappings", cliGpioMapSave);
-
-void cliDsList(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.printf_P(PSTR("ID\t\t\t\tLocal\n"));
-  for (auto &s : sens) {
-    shell.printf_P(PSTR("%s\t => \tIREG\t%d\t'%s\n"), s.addressToString().c_str(), s.pin, s.name.c_str());
-  }
-}
-ShellCommand(dslist, "- DS1820: List sensors", cliDsList);
-
-void cliDsSave(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.println(saveSensors()?"Done":"Error");
-}
-ShellCommand(dssave, "- DS1820: Save sensors", cliDsSave);
-
-void cliDsScan(Shell &shell, int argc, const ShellArguments &argv) {
-  shell.printf_P(PSTR("Found %d new sensors\n"), scanSensors());
-}
-ShellCommand(dsscan, "- DS1820: Scan for new sensors", cliDsScan);
-
-void cliDsMap(Shell &shell, int argc, const ShellArguments &argv) {
-  DeviceAddress addr;
-  sensor* dev;
-  char* tmp = "00";
-  if (argc > 2) {
-    for (uint8_t j = 0; j < 8; j++) {
-      tmp[0] = argv[1][j*2];
-      tmp[1] = argv[1][j*2 + 1];
-      addr[j] = strtol(tmp, NULL, 16);
-    }
-    dev = deviceFind(addr);
-    if (dev) {
-      dev->pin = atoi(argv[2]);
-    }
-  }
-}
-ShellCommand(dsmap, "<ID> <ireg> - DS1820: Map sensor to IREG", cliDsMap);
-
-void cliDsName(Shell &shell, int argc, const ShellArguments &argv) {
-  DeviceAddress addr;
-  sensor* dev;
-  char* tmp = "00";
-  if (argc > 2) {
-    for (uint8_t j = 0; j < 8; j++) {
-      tmp[0] = argv[1][j*2];
-      tmp[1] = argv[1][j*2 + 1];
-      addr[j] = strtol(tmp, NULL, 16);
-    }
-    dev = deviceFind(addr);
-    if (dev) {
-      dev->name = "";
-      for (uint8_t i = 2; i < argc; i++)
-        dev->name += " " + String(argv[i]);
-    }
-  }
-}
-ShellCommand(dsname, "<ID> <name> - DS1820: Set sensor name", cliDsName);
 
 
 // System - related
