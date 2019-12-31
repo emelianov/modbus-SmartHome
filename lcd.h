@@ -23,7 +23,7 @@ uint32_t lcdInit() {
     cJSON* arr = nullptr;
     cJSON* entry = nullptr;
     cJSON* item = nullptr;
-
+/*
     File configFile = SPIFFS.open(CFG_LCD, "r");
     if (!configFile)
         goto cleunup;
@@ -54,7 +54,7 @@ uint32_t lcdInit() {
         if (item && cJSON_IsNumber(item))
           height = item->valueint;
     }
-
+*/
     lcd = new LiquidCrystal_I2C(address, width, height);
     lcd->begin();
 
@@ -64,3 +64,31 @@ uint32_t lcdInit() {
     if (configFile) configFile.close();
     return RUN_DELETE;
 }
+
+void lcdText(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 3) {
+  }
+}
+ShellCommand(lcdtext, "<row> <col> <text> - LCD: Text output", lcdText);
+
+void lcdInt(Shell &shell, int argc, const ShellArguments &argv) {
+  String number;
+  uint8_t pos = 0;
+  uint8_t width = 0;
+  if (argc > 5) {
+    pos = atoi(argv[3]);
+    width = atoi(argv[4]);
+    number = argv[5];
+  }
+  else if(argc == 4) {
+    pos = atoi(argv[3]);
+    number = argv[4];    
+  }
+  else if (argc == 3) {
+    number = argv[3];
+  }
+  if (pos) {
+    number =  
+  }
+}
+ShellCommand(lcdnum, "<row> <col> [decimal pos] [width] <number> - LCD: Number output", lcdInt);

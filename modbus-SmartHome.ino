@@ -3,18 +3,23 @@
 // (c)2018, a.m.emelianov@gmail.com
 //
 
+#define VERSION "0.2  -  " __DATE__
+#define SERIAL
+//#define WS2812
+//#define LCD
+#define JSONRPC
+#define DS1820
+#define MEM_LOW 4096
+#define DEFAULT_NAME "mbh1"
+#define DEFAULT_PASSWORD "P@ssw0rd"
+
+#define TDEBUG(format, ...) //Serial.printf_P(PSTR(format), ##__VA_ARGS__);
 #define BUSY ;
 #define IDLE ;
-#define VERSION "0.2  -  " __DATE__
-#define TDEBUG(format, ...) //Serial.printf_P(PSTR(format), ##__VA_ARGS__);
-#define MEM_LOW 4096
-#define WS2812
-#define DEFAULT_NAME "MR1"
-#define DEFAULT_PASSWORD "P@ssw0rd"
+
 String sysName = DEFAULT_NAME;
 String sysPassword = DEFAULT_PASSWORD;
 
-extern String sysName;
 #ifdef ESP8266
  #include <FS.h>
 #else
@@ -26,13 +31,21 @@ extern String sysName;
 #include "web.h"
 #include "mb.h"
 #include "cli.h"
-#include "ds1820.h"
 #include "gpio.h"
 #include "update.h"
+#if defined(DS1820)
+ #include "ds1820.h"
+#endif
 #if defined(WS2812) && defined(ESP8266)
+ #undef SERIAL
  #include "leds.h"
 #endif
-
+#if defined(LCD)
+ #include "lcd.h"
+#endif
+#if defined(JSONRPC)
+ #include "jsonrpc.h"
+#endif
 
 ModbusIP* mb;
 uint32_t mem = 0;
@@ -49,20 +62,29 @@ uint32_t watchDog() {
 
 void setup(void)
 {
- #ifdef TDEBUG
-  //Serial.begin(74880);
+ #if defined(SERIAL)
+ #if defined(ESP32)
+  Serial.begin(115200);
+ #else
+  Serial.begin(74880);
+ #endif
  #endif
   SPIFFS.begin();
   wifiInit();    // Connect to WiFi network & Start discovery services
   webInit();     // Start Web-server
-  modbusInit();
+  modbusInit(); // Initialize Modbus subsystem
   taskAdd(cliInit);
   taskAdd(updateInit);
+ #if defined(DS1820)
   taskAdd(dsInit);      // Start 1-Wire temperature sensors
+ #endif
   taskAdd(gpioInit);
-  #if defined(WS2812) && defined(ESP8266)
-   taskAdd(ledsInit);
-  #endif
+ #if defined(WS2812) && defined(ESP8266)
+  taskAdd(ledsInit); // WS2812 led stripes
+ #endif
+ #if defined(JSONRPC)
+  taskAdd(jsonRpcInit);
+ #endif
 }
 
 void loop() { 

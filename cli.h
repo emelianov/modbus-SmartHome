@@ -123,11 +123,10 @@ void cliExec(Shell &shell, int argc, const ShellArguments &argv) {
 ShellCommand(exec, "Execute batch command", cliExec);
 */
 
-
-
-
 // System - related
 uint32_t cliLoop();
+
+#if defined(SERIAL)
 uint32_t serial2cli() {
   uint8_t data;
   while (Serial.readBytes(&data, 1))
@@ -154,6 +153,7 @@ void cliSerial(Shell &shell, int argc, const ShellArguments &argv) {
   taskAdd(serial2cli);
 }
 ShellCommand(serial, "[<Baudrate>] - Connect to serial (^Z to break)", cliSerial);
+#endif
 
 void cliPs(Shell &shell, int argc, const ShellArguments &argv) {
   shell.printf_P(PSTR("ID\tDelay\tRemind\n"));
@@ -169,6 +169,161 @@ void cliKill(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(kill, "<id> - Kill task by ID", cliKill);
 
+#define EXEC_TIME 50
+#define EXEC_DELAY RUN_NOW
+#define EXEC_BUF 128
+File execFile;
+uint16_t execId = 0;
+char buf[EXEC_BUF];
+
+uint32_t execRun() {  
+  if (!execFile)
+    return RUN_DELETE;
+    
+  uint32_t start = millis();
+  bool res = true;
+  ShellArguments* cmd = nullptr;
+  String ln;
+
+  while (millis() - start < EXEC_TIME) {
+    if (!execFile.available()) {
+      res = false;
+      goto leave;
+    }
+    ln = execFile.readStringUntil('\n');
+    if (ln.length() < 2) {
+      res = false;
+      goto leave;
+    }
+    char t = buf[strlen((char*)buf) - 1];
+    while(strlen((char*)buf) > 0 && (t == '\n' || t == '\r' || t == ' ')) {
+        buf[strlen((char*)buf) - 1] = 0;
+        t = buf[strlen((char*)buf) - 1];
+    }
+    if (ln[0] == '&') {
+      ln.concat(" ");
+      ln.concat((char*)buf);
+      //shell.printf("Read: |%s|\n", ln.c_str());
+      cmd = new ShellArguments((char*)ln.c_str() + 1, ln.length() - 1);
+    } else {
+      //shell.printf("Read: |%s|\n", ln.c_str());
+      cmd = new ShellArguments(((char*)ln.c_str()), ln.length());
+    }
+    //shell.printf("Cmd: %s\n", (*cmd)[0]);
+    if ((*cmd)[0][0] == ':')
+      return RUN_NOW;
+    if ((*cmd)[0][0] == '@') {
+      if (strcmp((*cmd)[0], "@delay") == 0) {      // @delay
+        if (cmd->count() > 1) {
+          uint32_t tm = atoi((*cmd)[1]);
+          if (tm == 0)
+            tm = 1;
+          return tm;
+        }
+      }
+      else if (strcmp((*cmd)[0], "@goto") == 0) {  // @goto
+        if (cmd->count() > 1) {
+          execFile.seek(0);
+          while (execFile.available()) {
+            String tmp = execFile.readStringUntil('\n');
+             if (strcmp(tmp.c_str(), (*cmd)[1]) == 0)
+              break;
+          }
+          if (!execFile.available())
+            res = false;
+          goto leave;
+        }
+      }
+      else if (strcmp((*cmd)[0], "@add") == 0) {   // @add
+        uint16_t sum = 0;
+        for (uint8_t i = 1; i < cmd->count(); i++)
+          sum += atoi((*cmd)[i]);
+        memset(buf, 0, EXEC_BUF);
+        shell.setOutput((char*)buf, 128);
+        shell.println(sum);
+        goto leave;
+      }
+      else if (strcmp((*cmd)[0], "@ifeq") == 0) {  // @ifne
+        if (cmd->count() > 2) {
+          //shell.printf("Read: |%s|%s|\n", (*cmd)[1], (char*)buf);
+          if (strcmp((*cmd)[1], (char*)buf) == 0) {
+            if ((*cmd)[2][0] != ':') {
+              memset(buf, 0, EXEC_BUF);
+              shell.setOutput((char*)buf, 128);
+              shell.print((*cmd)[2]);
+            } else {
+              execFile.seek(0);
+              while (execFile.available()) {
+                ln = execFile.readStringUntil('\n');
+                if (ln == (((*cmd))[2]))
+                  break;
+              }
+              if (!execFile.available())
+                res = false;
+            }
+          } else {
+            if (cmd->count() > 3) {
+              memset(buf, 0, EXEC_BUF);
+              shell.setOutput((char*)buf, 128);
+              shell.print((*cmd)[3]);
+            }
+          }
+        }
+        goto leave;
+      }
+      else if (strcmp((*cmd)[0], "@ifne") == 0) {  // @ifne
+        if (cmd->count() > 2) {
+          //shell.printf("Read: |%s|%s|\n", (*cmd)[1], (char*)buf);
+          if (strcmp((*cmd)[1], (char*)buf) != 0) {
+            execFile.seek(0);
+            while (execFile.available()) {
+              ln = execFile.readStringUntil('\n');
+              if (ln == (((*cmd))[2]))
+                break;
+            }
+            if (!execFile.available())
+              res = false;
+          }
+        }
+        goto leave;
+      }
+      else {
+        res = false;
+        goto leave;
+      }
+    }
+    //shell.printf("Try: %s\n", cmd[0]);
+    memset(buf, 0, EXEC_BUF);
+    shell.setOutput((char*)buf, 128);
+    shell.execute2((*cmd));
+  }
+  leave:
+  shell.setOutput();
+  if (cmd)
+    delete cmd;
+  //shell.println((char*)buf);
+  if (!res) {
+    shell.println("EXEC: Syntax error");
+    if (execFile)
+      execFile.close();
+    execId = 0;
+    ln = "";
+    return RUN_DELETE;
+  }
+  return EXEC_DELAY;
+}
+void cliExec(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 1) {
+    if (execFile)
+      execFile.close();
+    execFile = SPIFFS.open(argv[1], "r");
+    if (execFile) {
+      execId = taskAdd(execRun);
+      shell.println(execId);
+    }
+  }
+}
+ShellCommand(exec, "<filename> - Execute batch", cliExec);
 
 void cliMem(Shell &shell, int argc, const ShellArguments &argv) {
   shell.println(ESP.getFreeHeap());
@@ -261,6 +416,80 @@ void cliHexdump(Shell &shell, int argc, const ShellArguments &argv) {
   }
 }
 ShellCommand(hexdump, "<filename> - SPIFFS: View file content in Hex", cliHexdump);
+
+void cliLine(Shell &shell, int argc, const ShellArguments &argv) {
+  File file;
+  uint16_t t = 0;
+  if (argc < 2)
+    return;
+  if(SPIFFS.exists(argv[1])){
+    if (argc > 3 || (argc > 2 && argv[2][0] == '-')) {
+      file = SPIFFS.open(argv[1], "r+");
+      if (!file)
+        goto leave;
+        t = abs(atoi(argv[2]));
+      char data;
+      uint16_t i = 1;
+      file.seek(0);
+      while (i < t && file.read((uint8_t*)&data, 1)) {
+        if (data =='\n')
+          i++;
+      }
+      size_t filePos = file.position();
+      if (argv[2][0] != '+') {
+        while (file.read((uint8_t*)&data, 1) && (data != '\n'));
+      }
+      size_t fileRest = file.size() - file.position();
+      uint8_t buf[fileRest];
+      file.read(buf, fileRest);
+      file.seek(filePos);
+      if (argv[2][0] != '-') {
+          for (uint8_t j = 3; j < argc; j++) {
+            file.write(argv[j]);
+            if (j < argc - 1)
+              file.write(" ");
+          }
+          file.write('\n');
+      }
+      file.write(buf, fileRest);
+      file.truncate(file.position());
+    } else {
+      file = SPIFFS.open(argv[1], "r");
+      if (!file)
+        goto leave;
+      if (argc > 2)
+        t = atoi(argv[2]);
+      char data;
+      uint16_t i = 1;
+      if (t == 0)
+        shell.printf_P(PSTR("%d\t"), i);
+      while (file.read((uint8_t*)&data, 1)) {
+        if (data == '\r')
+          continue;
+        if (t == 0 || i == t)
+          shell.write(data);
+        if (data =='\n') {
+          i++;
+          if (t == 0)
+            shell.printf_P(PSTR("%d\t"), i);
+        }
+        if (t != 0 && i > t)
+          break;
+      }
+    }
+  } else {
+    if (argv[2][0] == '+') {
+      file = SPIFFS.open(argv[1], "w");
+    }
+  }
+  leave:
+  if (!file) {
+    shell.printf_P(PSTR("File not found"));
+    return;
+  }
+  file.close();
+}
+ShellCommand(line, "<filename> [line#|+line#|-line#] [new text] - SPIFFS: View, replace or add line of file", cliLine);
 
 void cliRm(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc > 0)

@@ -2,9 +2,9 @@
 
 ## Supported CLI features
 
-* Modbus Slave
-* Modbus Master. Pull/push registers from slave by schedule.
-* 1-Wire DS18B20 mapping to Modbus registers
+* ModbusIP Server
+* ModbusIP Client. Pull/push registers from server by schedule.
+* 1-Wire DS18B20 mapping to Modbus registers. Query schedule.
 * GPIO mapping to Modbus registers
 * Configuration is storing in JSON and aplaied at boot
 * Modbus interactive read/write local and remote registers
@@ -24,6 +24,7 @@
 * [Arduino plug and go library for the Maxim (previously Dallas) DS18B20 (and similar) temperature ICs](https://github.com/milesburton/Arduino-Temperature-Control-Library)
 * [ESP8266Ping with Async extension](https://github.com/emelianov/ESP8266Ping)
 * [Shell](https://github.com/emelianov/Shell)
+* [NeoPixelBus](https://github.com/Makuna/NeoPixelBus)
 
 ## Telnet CLI commands
 
@@ -34,6 +35,7 @@
 * rm
 * cat
 * hexdump
+* line
 
 ### Modbus (slave)
 
@@ -44,7 +46,7 @@
 
 ### ModbusIP (master)
 
-* connect
+* slave
 * slavecoil
 * slavehreg
 * slaveists
@@ -76,6 +78,33 @@
 * gpiomapists
 * gpiolist
 * gpiosave
+
+### WS2812
+
+* ledcolor
+* ledon
+* ledoff
+* ledshift
+* ledrotate
+* ledshow
+
+### LCD
+
+* lcdtext
+* lcdnum
+* lcdclear
+
+### Batch
+
+* exec
+* @delay
+* @goto
+* &
+* @add
+* @ifeq
+* @ifgt
+* @ifle
+* :<label>
 
 ### System
 
