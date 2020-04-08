@@ -186,6 +186,7 @@ uint32_t execRun() {
   String ln;
 
   while (millis() - start < EXEC_TIME) {
+    char t = buf[strlen((char*)buf) - 1];
     if (!execFile.available()) {
       res = false;
       goto leave;
@@ -195,7 +196,6 @@ uint32_t execRun() {
       res = false;
       goto leave;
     }
-    char t = buf[strlen((char*)buf) - 1];
     while(strlen((char*)buf) > 0 && (t == '\n' || t == '\r' || t == ' ')) {
         buf[strlen((char*)buf) - 1] = 0;
         t = buf[strlen((char*)buf) - 1];
@@ -296,7 +296,6 @@ uint32_t execRun() {
     memset(buf, 0, EXEC_BUF);
     shell.setOutput((char*)buf, 128);
     shell.execute2((*cmd));
-  }
   leave:
   shell.setOutput();
   if (cmd)
@@ -309,6 +308,7 @@ uint32_t execRun() {
     execId = 0;
     ln = "";
     return RUN_DELETE;
+  }
   }
   return EXEC_DELAY;
 }
@@ -369,6 +369,7 @@ void cliLs(Shell &shell, int argc, const ShellArguments &argv) {
   SPIFFS.info(fsInfo);
   shell.printf_P(PSTR("Used/Total (bytes): %lu/%lu\n"), fsInfo.usedBytes, fsInfo.totalBytes);
  #else
+  dir.close();
   shell.print(SPIFFS.usedBytes());
   shell.print("/");
   shell.print(SPIFFS.totalBytes());

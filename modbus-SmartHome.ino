@@ -5,9 +5,9 @@
 
 #define VERSION "0.2  -  " __DATE__
 #define SERIAL
-//#define WS2812
+#define WS2812
 //#define LCD
-#define JSONRPC
+//#define JSONRPC
 #define DS1820
 #define MEM_LOW 4096
 #define DEFAULT_NAME "mbh1"
