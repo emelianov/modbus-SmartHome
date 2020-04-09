@@ -14,6 +14,27 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 
+#include <nvs.h>
+
+void cliNvsSet(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 2) {
+    nvs_set((char*)argv[1], (uint8_t*)argv[2], strlen(argv[2]));
+  }
+}
+ShellCommand(nvsset, "key value", cliNvsSet);
+
+void cliNvsGet(Shell &shell, int argc, const ShellArguments &argv) {
+  size_t l = atoi(argv[2]);
+  if (argc > 2 && l > 0) {
+    char* t = (char*)malloc(l + 1);
+    t[l] = '/0';
+    nvs_get((char*)argv[1], (uint8_t*)t, l);
+    shell.println(t);
+  }
+}
+ShellCommand(nvsget, "key length", cliNvsGet);
+
+
 class Cmd : public JsonServer {
     virtual int16_t queue_f(MacAddress mac) {
         return false;
@@ -46,7 +67,7 @@ void handleJsonRpc() {
 
 uint32_t jsonRpcInit() {
   cm.setKey("123");
-  Serial.printf("Key: %s, Sign: %s\n", 
+  //Serial.printf("Key: %s, Sign: %s\n", 
   server->on("/rpc", handleJsonRpc);
   return RUN_DELETE;
 }

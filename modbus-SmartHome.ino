@@ -5,9 +5,10 @@
 
 #define VERSION "0.2  -  " __DATE__
 #define SERIAL
-#define WS2812
+//#define WS2812
 //#define LCD
 //#define JSONRPC
+#define HOMEKIT
 #define DS1820
 #define MEM_LOW 4096
 #define DEFAULT_NAME "mbh1"
@@ -45,6 +46,9 @@ String sysPassword = DEFAULT_PASSWORD;
 #endif
 #if defined(JSONRPC)
  #include "jsonrpc.h"
+#endif
+#if defined(HOMEKIT)
+ #include "homekit.h"
 #endif
 
 ModbusIP* mb;
@@ -84,6 +88,9 @@ void setup(void)
  #endif
  #if defined(JSONRPC)
   taskAdd(jsonRpcInit);
+ #endif
+ #if defined(HOMEKIT)
+  taskAdd(homekitInit);
  #endif
 }
 

@@ -418,6 +418,7 @@ void cliHexdump(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(hexdump, "<filename> - SPIFFS: View file content in Hex", cliHexdump);
 
+#if defined(ESP8266)
 void cliLine(Shell &shell, int argc, const ShellArguments &argv) {
   File file;
   uint16_t t = 0;
@@ -448,7 +449,7 @@ void cliLine(Shell &shell, int argc, const ShellArguments &argv) {
           for (uint8_t j = 3; j < argc; j++) {
             file.write(argv[j]);
             if (j < argc - 1)
-              file.write(" ");
+              file.write(' ');
           }
           file.write('\n');
       }
@@ -491,6 +492,7 @@ void cliLine(Shell &shell, int argc, const ShellArguments &argv) {
   file.close();
 }
 ShellCommand(line, "<filename> [line#|+line#|-line#] [new text] - SPIFFS: View, replace or add line of file", cliLine);
+#endif
 
 void cliRm(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc > 0)
