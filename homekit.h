@@ -8,6 +8,11 @@ extern "C" void led_toggle();
 extern "C" void accessory_init();
 extern "C" void homekit_server_reset();
 
+extern "C" float getTemp(uint8_t i);
+float getTemp(uint8_t i) {
+  return 20.0;
+}
+
 uint32_t next_heap_millis = 0;
 uint32_t homekit_loop();
 

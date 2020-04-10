@@ -38,9 +38,10 @@ void led_on_set(homekit_value_t value) {
 	led_power = value.bool_value;
 	led_update();
 }
+extern float getTemp(uint8_t i);
 
 homekit_value_t temp_on_get() {
-  return HOMEKIT_FLOAT(20.0);
+  return HOMEKIT_FLOAT(getTemp(0));
 }
 
 homekit_characteristic_t name = HOMEKIT_CHARACTERISTIC_(NAME, ACCESSORY_NAME);
