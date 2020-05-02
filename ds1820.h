@@ -6,7 +6,8 @@
 #pragma once
 
 #ifdef ESP8266
- #define OW_PIN D2
+ #define OW_PIN 0
+ //D2
 #else
  #define OW_PIN 21
 #endif
