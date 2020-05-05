@@ -42,6 +42,12 @@ bool cbPull(Modbus::ResultCode event, uint16_t transactionId, void* data) {
   return true;
 }
 
+bool connectRemote(IPAddress ip) {
+  Serial.println(ESP.getFreeHeap());
+  mb->connect(ip);
+  Serial.println(ESP.getFreeHeap());
+}
+
 uint32_t queryRemoteIreg() {
   uint16_t thisTaskId = taskId();
   std::vector<register_t>::iterator it = std::find_if(regs.begin(), regs.end(), [thisTaskId](const register_t& d) {return d.taskId == thisTaskId;});
@@ -49,9 +55,7 @@ uint32_t queryRemoteIreg() {
     if (mb->isConnected(it->ip)) {
       mb->pullIreg(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
     } else {
-      Serial.println(ESP.getFreeHeap());
-      mb->connect(it->ip);
-      Serial.println(ESP.getFreeHeap());
+      connectRemote(it->ip);
     }
     return it->interval;
   }
@@ -65,9 +69,7 @@ uint32_t queryRemoteIsts() {
     if (mb->isConnected(it->ip)) {
       mb->pullIsts(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
     } else {
-      Serial.println(ESP.getFreeHeap());
-      mb->connect(it->ip);
-      Serial.println(ESP.getFreeHeap());
+      connectRemote(it->ip);
     }
     return it->interval;
   }
@@ -85,9 +87,7 @@ uint32_t queryRemoteHreg() {
         mb->pushIregToHreg(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
       }
     } else {
-      Serial.println(ESP.getFreeHeap());
-      mb->connect(it->ip);
-      Serial.println(ESP.getFreeHeap());
+      connectRemote(it->ip);
     }
     return it->interval;
   }
@@ -105,9 +105,7 @@ uint32_t queryRemoteCoil() {
         mb->pushIstsToCoil(it->ip, it->remote.address, it->reg.address, it->count, cbPull);
       }
     } else {
-      Serial.println(ESP.getFreeHeap());
-      mb->connect(it->ip);
-      Serial.println(ESP.getFreeHeap());
+      connectRemote(it->ip);
     }
     return it->interval;
   }

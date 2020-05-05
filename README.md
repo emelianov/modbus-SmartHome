@@ -14,6 +14,7 @@
 * File operations (list, remove, view content)
 * System operarions (memory information, reboot, uptime, show date/time)
 * Ping
+* Apple HomeKit (mapping Modbus registers to)
 
 ## Based on following progects
 
@@ -25,6 +26,7 @@
 * [ESP8266Ping with Async extension](https://github.com/emelianov/ESP8266Ping)
 * [Shell](https://github.com/emelianov/Shell)
 * [NeoPixelBus](https://github.com/Makuna/NeoPixelBus)
+* [Native Apple HomeKit accessory implementation for the ESP8266/ESP32 Arduino core](https://github.com/Mixiaoxiao/Arduino-HomeKit-ESP8266)
 
 ## Telnet CLI commands
 
@@ -78,6 +80,13 @@
 * gpiomapists
 * gpiolist
 * gpiosave
+
+### HomeKit
+
+* hkreset
+* hklist
+* khtemp
+* hklamp
 
 ### WS2812
 

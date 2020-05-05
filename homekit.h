@@ -3,8 +3,11 @@
 #include <ModbusIP_ESP8266.h>
 #include <arduino_homekit_server.h>
 
+#define CFG_HOMEKIT "/homekit.json"
 #define MDNS_ANNOUNCE 5000
 #define HOMEKIT_MAX_DEV 8
+#define HOMEKIT_TEMP "Temperature"
+#define HOMEKIT_LAMP "Lamp"
 
 extern ModbusIP* mb;
 
@@ -31,16 +34,25 @@ struct hk_map_t {
 hk_map_t hkMap[HOMEKIT_MAX_DEV];
 uint8_t hkMapCount = 0;
 
+float shift10(float t, int8_t s) {
+  if (s == 0) return t;
+  while (s) {
+    t /= 10;
+    s--;
+  }
+  return t;
+}
+
 template <int N>
 homekit_value_t temp_on_get() {
   int16_t t = 0;
   switch (hkMap[N].reg.type) {
   case TAddress::HREG:
     t = mb->Hreg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP( (hkMap[N].shift != 0)?((float)t / hkMap[N].shift):(float)t );
+    return HOMEKIT_FLOAT_CPP(shift10(t, hkMap[N].shift));
   case TAddress::IREG:
     t = mb->Ireg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP( (hkMap[N].shift != 0)?((float)t / hkMap[N].shift):(float)t );
+    return HOMEKIT_FLOAT_CPP(shift10(t, hkMap[N].shift));
   case TAddress::COIL:
     return HOMEKIT_BOOL_CPP(mb->Coil(hkMap[N].reg.address));
   case TAddress::ISTS:
@@ -110,7 +122,7 @@ uint16_t onIreg(TRegister* reg, uint16_t val) {
   uint8_t i;
   for (i = 0; i < HOMEKIT_MAX_DEV && hkMap[i].reg != reg->address; i++) ; // Find HomeKit mapping
   if (i >= HOMEKIT_MAX_DEV || !hkMap[i].ch) return val; // Skip if not found or no characteristic in mapping
-  homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_FLOAT_CPP((hkMap[i].shift != 0)?(float)val / hkMap[i].shift:(float)val));
+  homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_FLOAT_CPP(shift10(val, hkMap[i].shift)));
   return val;
 }
 
@@ -154,12 +166,14 @@ uint32_t homekit_mdns() {
   return MDNS_ANNOUNCE;
 }
 
+bool readHomekit();
 uint32_t homekitInit() {
   //hkMap = malloc(sizeof(hk_map_t));
   //hkMap[0] = 
   service_init();
   //addON("Led", led_on_get, led_on_set);
-  addT("Temperature", 1);
+  //addT("Temperature", 1);
+  readHomekit();
   accessory_init();
   uint8_t mac[WL_MAC_ADDR_LENGTH];
   WiFi.macAddress(mac);
@@ -190,17 +204,152 @@ void cliHKreset(Shell &shell, int argc, const ShellArguments &argv) {
 }
 ShellCommand(hkreset, " - HomeKit: Reset pairings", cliHKreset);
 
-void cliHKmap(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 1) {
+char* regTypeToStr(TAddress reg);
+void cliHKlist(Shell &shell, int argc, const ShellArguments &argv) {
+  shell.printf("Reg\t\tShift\tType\tDescription\n");
+  for (uint8_t i = 0; i < hkMapCount; i++)
+    shell.printf("%s\t%d\t%d\t%s\t%s\n", regTypeToStr(hkMap[i].reg), hkMap[i].reg.address, hkMap[i].shift, hkMap[i].ch->type, hkMap[i].ch->description);
+}
+ShellCommand(hklist, " - HomeKit: List devices", cliHKlist);
+
+bool addHomekit(const char* type, const char* name, TAddress reg, int16_t extra);
+
+void cliHKlamp(Shell &shell, int argc, const ShellArguments &argv) {
+  if (argc > 2) {
+    if (!addHomekit(HOMEKIT_LAMP, argv[3], COIL(atoi(argv[1])), 0))
+      shell.printf("Error\n");
   }
 }
-ShellCommand(hkmap, "<Coil> <Name> - HomeKit: Map Coil to Switch", cliHKmap);
+ShellCommand(hklamp, "<Coil> <Name> - HomeKit: Map Coil to Switch", cliHKlamp);
 
 void cliHKtemp(Shell &shell, int argc, const ShellArguments &argv) {
-  if (argc > 1) {
+  if (argc > 3) {
+    if (!addHomekit(HOMEKIT_TEMP, argv[3], IREG(atoi(argv[1])), atoi(argv[2])))
+      shell.printf("Error\n");
   }
 }
-ShellCommand(hktemp, "<Ireg> <Name> - HomeKit: Map Ireg to Temperature", cliHKmap);
+ShellCommand(hktemp, "<Ireg> <shift> <Name> - HomeKit: Map Ireg to Temperature", cliHKtemp);
+
+
+
+bool readHomekit() {
+  cJSON* json = nullptr;
+  cJSON* arr = nullptr;
+  File configFile = SPIFFS.open(CFG_HOMEKIT, "r");
+  if (configFile) {
+    char* data = (char*)malloc(configFile.size() + 1);
+    if (data) {
+      if (configFile.read((uint8_t*)data, configFile.size()) == configFile.size()) {
+        data[configFile.size()] = '/0';
+        TDEBUG("Homekit: default %d bytes read\n", configFile.size());
+        json = cJSON_Parse(data);
+      }
+      free(data);
+    }
+    configFile.close();
+  }
+  if (!json) return false;
+  cJSON* address;
+  cJSON* value;
+  cJSON* shift;
+  cJSON* entry;
+  arr = cJSON_GetObjectItemCaseSensitive(json, HOMEKIT_TEMP);
+  if (arr)
+    cJSON_ArrayForEach(entry, arr) {
+      address = cJSON_GetObjectItemCaseSensitive(entry, "address");
+      value = cJSON_GetObjectItemCaseSensitive(entry, "name");
+      shift = cJSON_GetObjectItemCaseSensitive(entry, "shift");
+      if (value && address && shift && cJSON_IsString(value) && cJSON_IsNumber(address) && cJSON_IsNumber(shift)) {
+        addT(value->valuestring, address->valueint, shift->valueint);
+      }
+    }
+  arr = cJSON_GetObjectItemCaseSensitive(json, HOMEKIT_LAMP);
+  if (arr)
+    cJSON_ArrayForEach(entry, arr) {
+      address = cJSON_GetObjectItemCaseSensitive(entry, "address");
+      value = cJSON_GetObjectItemCaseSensitive(entry, "name");
+      if (value && address && cJSON_IsString(value) && cJSON_IsNumber(address)) {
+        addO(value->valuestring, address->valueint);
+      }
+  }
+  cleanup:
+  cJSON_Delete(json);
+  return true;
+}
+
+bool addHomekit(const char* type, const char* name, TAddress reg, int16_t extra = 0) {
+  cJSON* json = nullptr;
+  cJSON* arr = nullptr;
+  cJSON* address = nullptr;
+  cJSON* value = nullptr;
+  cJSON* entry = nullptr;
+  cJSON* item = nullptr;
+  bool update = false;
+  bool result = false;
+
+  File configFile = SPIFFS.open(CFG_HOMEKIT, "r");
+  if (configFile) {
+    char* data = (char*)malloc(configFile.size() + 1);
+    if (data) {
+      if (configFile.read((uint8_t*)data, configFile.size()) == configFile.size()) {
+        data[configFile.size()] = '/0';
+        TDEBUG("Homekit: default %d bytes read\n", configFile.size());
+        json = cJSON_Parse(data);
+      }
+      free(data);
+    }
+    configFile.close();
+  }
+  if (!json)
+    json = cJSON_CreateObject();
+  if (!json) return false;
+  arr = cJSON_GetObjectItemCaseSensitive(json, type);
+  if (arr)
+    cJSON_ArrayForEach(entry, arr) {  // Try to find and update entry
+      address = cJSON_GetObjectItemCaseSensitive(entry, "address");
+      value = cJSON_GetObjectItemCaseSensitive(entry, "name");
+      if (value && address && cJSON_IsString(value) && strcmp(value->valuestring, name) == 0) {
+        update = true;
+      }
+    }
+   else {
+    arr = cJSON_CreateArray();
+    if (!arr) goto cleanup;
+    cJSON_AddItemToObject(json, type, arr);
+   }
+    if (!update) {  // Append entry
+      entry = cJSON_CreateObject();
+      item = cJSON_CreateString(name);
+      if (!item) goto cleanup;
+      cJSON_AddItemToObject(entry, "name", item);
+      item = cJSON_CreateNumber(reg.address);
+      if (!item) goto cleanup;
+      cJSON_AddItemToObject(entry, "address", item);
+      if (strcmp(type, HOMEKIT_TEMP) == 0) {
+        item = cJSON_CreateNumber(extra);
+        if (!item) goto cleanup;
+        cJSON_AddItemToObject(entry, "shift", item);
+      }
+      cJSON_AddItemToArray(arr, entry);
+      entry = nullptr;
+      update = true;
+    }
+    if (update) {
+      configFile = SPIFFS.open(CFG_HOMEKIT, "w");
+      if (configFile) {
+        char* out = cJSON_Print(json);
+        configFile.write((uint8_t*)out, strlen(out));
+        free(out);
+      }
+      //configFile.close();
+    }
+  result = true;
+  cleanup:
+  if (configFile) configFile.close();
+  if (entry) cJSON_Delete(entry);
+  if (json) cJSON_Delete(json);
+  return result;
+}
 
 uint32_t homeKitInit() {
   return RUN_DELETE;
