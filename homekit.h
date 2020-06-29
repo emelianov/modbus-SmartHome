@@ -21,13 +21,16 @@ extern "C" void led_toggle();
 extern "C" void accessory_init();
 extern "C" void service_init();
 extern "C" void homekit_server_reset();
-extern "C" homekit_characteristic_t* addCT(char* name, homekit_value_t (*f)());
-extern "C" homekit_characteristic_t* addON(char* name, homekit_value_t (*g)(), void (*s)(homekit_value_t));
+extern "C" homekit_characteristic_t* addCT(char* name);
+extern "C" homekit_characteristic_t* addON(char* name, void (*s)(homekit_value_t));
+extern "C" homekit_characteristic_t* addTT(char* name, homekit_characteristic_t** ch,
+                                            void (*s2)(homekit_value_t), homekit_characteristic_t** ch2,
+                                            homekit_characteristic_t** ch3,
+                                            void (*s4)(homekit_value_t), homekit_characteristic_t** ch4);
 
 struct hk_map_t {
   TAddress reg = IREG(0);
   int8_t shift = 1;
-  //char* name = "";
   homekit_characteristic_t* ch = NULL;
 };
 
@@ -43,16 +46,29 @@ float shift10(float t, int8_t s) {
   return t;
 }
 
+int unshift10(float t, int8_t s) {
+  if (s == 0) return t;
+  while (s) {
+    t *= 10;
+    s--;
+  }
+  if (t > 32768)
+    t = 32768;
+  else if (t < -32767)
+    t -32767;
+  return t;
+}
+
 template <int N>
 homekit_value_t temp_on_get() {
   int16_t t = 0;
   switch (hkMap[N].reg.type) {
   case TAddress::HREG:
     t = mb->Hreg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP(shift10(t, hkMap[N].shift));
+    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
   case TAddress::IREG:
     t = mb->Ireg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP(shift10(t, hkMap[N].shift));
+    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
   case TAddress::COIL:
     return HOMEKIT_BOOL_CPP(mb->Coil(hkMap[N].reg.address));
   case TAddress::ISTS:
@@ -62,15 +78,69 @@ homekit_value_t temp_on_get() {
 }
 
 template <int N>
+homekit_value_t int_on_get() {
+  int16_t t = 0;
+  switch (hkMap[N].reg.type) {
+  case TAddress::HREG:
+    t = mb->Hreg(hkMap[N].reg.address);
+    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
+  case TAddress::IREG:
+    t = mb->Ireg(hkMap[N].reg.address);
+    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
+  case TAddress::COIL:
+    return HOMEKIT_BOOL_(mb->Coil(hkMap[N].reg.address));
+  case TAddress::ISTS:
+    return HOMEKIT_BOOL_CPP(mb->Ists(hkMap[N].reg.address));
+  }
+  return HOMEKIT_NULL_CPP();
+}
+
+template <int N>
 void temp_on_set(homekit_value_t v) {
+  int16_t r = 0;
   switch (hkMap[N].reg.type) {
   case TAddress::COIL:
     if (v.format != homekit_format_bool) return;
+    hkMap[N].ch->value = HOMEKIT_BOOL_CPP(v.bool_value);
     mb->Coil(hkMap[N].reg.address, v.bool_value);
   break;
   case TAddress::ISTS:
     if (v.format != homekit_format_bool) return;
+    hkMap[N].ch->value = HOMEKIT_BOOL_CPP(v.bool_value);
     mb->Ists(hkMap[N].reg.address, v.bool_value);
+  break;
+  case TAddress::IREG:
+    if (v.format == homekit_format_bool) {
+      hkMap[N].ch->value = HOMEKIT_BOOL_CPP(v.bool_value);
+      r = v.bool_value;
+    }
+    else if (v.format == homekit_format_float) {
+      //int8_t s = 
+      r = unshift10(v.float_value, hkMap[N].shift);
+    }
+    else if (v.format == homekit_format_int) {
+      r = v.int_value;
+      hkMap[N].ch->value = HOMEKIT_INT_CPP(v.int_value);
+    }
+    else
+      break;
+    mb->Ists(hkMap[N].reg.address, r);
+  break;
+  case TAddress::HREG:
+    if (v.format == homekit_format_bool) {
+      r = v.bool_value;
+      hkMap[N].ch->value = HOMEKIT_BOOL_CPP(v.bool_value);
+    }
+    else if (v.format == homekit_format_float) {
+      r = unshift10(v.float_value, hkMap[N].shift);
+    }
+    else if (v.format == homekit_format_int) {
+      r = v.int_value;
+      hkMap[N].ch->value = HOMEKIT_INT_CPP(v.int_value);
+    }
+    else
+      break;
+    mb->Hreg(hkMap[N].reg.address, r);
   break;
   }
 }
@@ -117,12 +187,26 @@ hkSetter hkMapSetter(uint8_t idx) {
   }
 }
 
-uint16_t onIreg(TRegister* reg, uint16_t val) {
-  if (mb->Ireg(reg->address.address) == val) return val; // Skip if no change
+uint16_t onRegInteger(TRegister* reg, uint16_t val) {
+  if (reg->address.isIreg() && mb->Ireg(reg->address.address) == val) return val; // Skip if no change
+  if (reg->address.isHreg() && mb->Hreg(reg->address.address) == val) return val; // Skip if no change
   uint8_t i;
   for (i = 0; i < HOMEKIT_MAX_DEV && hkMap[i].reg != reg->address; i++) ; // Find HomeKit mapping
   if (i >= HOMEKIT_MAX_DEV || !hkMap[i].ch) return val; // Skip if not found or no characteristic in mapping
-  homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_FLOAT_CPP(shift10(val, hkMap[i].shift)));
+  hkMap[i].ch->value = HOMEKIT_INT_CPP((int16_t)val);
+  homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_INT_CPP((int16_t)val));
+  return val;
+}
+
+uint16_t onIreg(TRegister* reg, uint16_t val) {
+  if (reg->address.isIreg() && mb->Ireg(reg->address.address) == val) return val; // Skip if no change
+  if (reg->address.isHreg() && mb->Hreg(reg->address.address) == val) return val; // Skip if no change
+  uint8_t i;
+  for (i = 0; i < HOMEKIT_MAX_DEV && hkMap[i].reg != reg->address; i++) ; // Find HomeKit mapping
+  if (i >= HOMEKIT_MAX_DEV || !hkMap[i].ch) return val; // Skip if not found or no characteristic in mapping
+  hkMap[i].ch->value.float_value = shift10((int16_t)val, hkMap[i].shift);
+  homekit_characteristic_notify(hkMap[i].ch, hkMap[i].ch->value);
+  //homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_FLOAT_CPP(shift10((int16_t)val, hkMap[i].shift)));
   return val;
 }
 
@@ -132,11 +216,41 @@ bool addT(char* name, uint16_t ireg, int8_t shift = 1) {
   mb->onSetIreg(ireg, onIreg);
   hkMap[hkMapCount].reg = IREG(ireg);
   hkMap[hkMapCount].shift = shift;
-  hkMap[hkMapCount].ch = addCT(name, hkMapGetter(hkMapCount));
+  hkMap[hkMapCount].ch = addCT(name);
   hkMapCount++;
   return true;
 }
 
+bool addThermostat(char* name, uint16_t reg, int8_t shift = 1) {
+  if (hkMapCount >= HOMEKIT_MAX_DEV) return false;
+  if (!mb->addIreg(reg)) return false;
+  if (!mb->addHreg(reg)) return false;
+  if (!mb->addIreg(reg + 1)) return false;
+  if (!mb->addHreg(reg + 1)) return false;
+  mb->onSetIreg(reg, onIreg);
+  mb->onSetHreg(reg, onIreg);
+  mb->onSetIreg(reg + 1, onRegInteger);
+  mb->onSetHreg(reg + 1, onRegInteger);
+  
+  hkMap[hkMapCount].reg = IREG(reg);  // Current T
+  hkMap[hkMapCount].shift = shift;
+  hkMap[hkMapCount + 1].reg = HREG(reg);  // Target T
+  hkMap[hkMapCount + 1].shift = shift;
+  reg++;
+  hkMap[hkMapCount + 2].reg = IREG(reg);  // Current Mode
+  hkMap[hkMapCount + 2].shift = shift;
+  hkMap[hkMapCount + 3].reg = HREG(reg);  // Target Mode
+  hkMap[hkMapCount + 3].shift = shift;
+
+  addTT(name, &hkMap[hkMapCount].ch,
+              hkMapSetter(hkMapCount + 1), &hkMap[hkMapCount + 1].ch,
+              &hkMap[hkMapCount + 2].ch,
+              hkMapSetter(hkMapCount + 3), &hkMap[hkMapCount + 3].ch);
+              
+  hkMapCount  += 4;
+  return true;
+}
+                                            
 uint16_t onCoil(TRegister* reg, uint16_t val) {
   if (mb->Coil(reg->address.address) == val) return val; // Skip if no change
   uint8_t i;
@@ -152,7 +266,7 @@ bool addO(char* name, uint16_t coil, int8_t shift = 1) {
   mb->onSetCoil(coil, onCoil);
   hkMap[hkMapCount].reg = COIL(coil);
   hkMap[hkMapCount].shift = shift;
-  hkMap[hkMapCount].ch = addON(name, hkMapGetter(hkMapCount), hkMapSetter(hkMapCount));
+  hkMap[hkMapCount].ch = addON(name, hkMapSetter(hkMapCount));
   hkMapCount++;
   return true;
 }
@@ -174,6 +288,7 @@ uint32_t homekitInit() {
   //addON("Led", led_on_get, led_on_set);
   //addT("Temperature", 1);
   readHomekit();
+  //addThermostat("Heater", 10, 2);
   accessory_init();
   uint8_t mac[WL_MAC_ADDR_LENGTH];
   WiFi.macAddress(mac);
@@ -216,7 +331,7 @@ bool addHomekit(const char* type, const char* name, TAddress reg, int16_t extra)
 
 void cliHKlamp(Shell &shell, int argc, const ShellArguments &argv) {
   if (argc > 2) {
-    if (!addHomekit(HOMEKIT_LAMP, argv[3], COIL(atoi(argv[1])), 0))
+    if (!addHomekit(HOMEKIT_LAMP, argv[2], COIL(atoi(argv[1])), 0))
       shell.printf("Error\n");
   }
 }

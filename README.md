@@ -1,11 +1,14 @@
 # modbus-SmartHome
 
+This sketch is 
+
 ## Supported CLI features
 
 * ModbusIP Server
 * ModbusIP Client. Pull/push registers from server by schedule.
 * 1-Wire DS18B20 mapping to Modbus registers. Query schedule.
-* GPIO mapping to Modbus registers
+* GPIO mapping to Modbus registers (not implemented completry yet)
+* Apple HomeKit (mapping Modbus registers to)
 * Configuration is storing in JSON and aplaied at boot
 * Modbus interactive read/write local and remote registers
 * GPIO interactive read/write/mode change
@@ -14,7 +17,6 @@
 * File operations (list, remove, view content)
 * System operarions (memory information, reboot, uptime, show date/time)
 * Ping
-* Apple HomeKit (mapping Modbus registers to)
 
 ## Based on following progects
 

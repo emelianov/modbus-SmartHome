@@ -6,6 +6,10 @@
 
 extern ModbusIP* mb;
 
+#define GPIO_CLICK 50, 0
+#define GPIO_PRESS 250, 0
+#define GPIO_DOUBLE_CLICK 50
+
 struct gpio_t {
   String name = "";
   uint8_t mode = INPUT;
@@ -69,7 +73,8 @@ uint16_t cbDigitalRead(TRegister* reg, uint16_t val) {
     break;
     }
   }
-  return COIL_VAL(false);
+  //return COIL_VAL(false);
+  return val;
 }
 
 uint16_t cbDigitalWrite(TRegister* reg, uint16_t val) {
@@ -90,7 +95,8 @@ uint16_t cbDigitalWrite(TRegister* reg, uint16_t val) {
     break;
     }
   }
-  return COIL_VAL(false);
+  //return COIL_VAL(false);
+  return val;
 }
 
 uint16_t addGpio(TAddress local, uint8_t pin, uint8_t mode) {

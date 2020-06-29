@@ -21,57 +21,11 @@
 #define ACCESSORY_MANUFACTURER ("http://733666.ru")
 #define ACCESSORY_MODEL  ("ESP8266")
 
-#define PIN_LED  2//D4
-
-bool led_power = false; //true or flase
-void led_update();
-
-homekit_value_t led_on_get() {
-	return HOMEKIT_BOOL(led_power);
-}
-
-void led_on_set(homekit_value_t value) {
-	if (value.format != homekit_format_bool) {
-		printf("Invalid on-value format: %d\n", value.format);
-		return;
-	}
-	led_power = value.bool_value;
-	led_update();
-}
-
-extern homekit_value_t temp_on_get();
-
 homekit_characteristic_t name = HOMEKIT_CHARACTERISTIC_(NAME, ACCESSORY_NAME);
 homekit_characteristic_t serial_number = HOMEKIT_CHARACTERISTIC_(SERIAL_NUMBER, ACCESSORY_SN);
-homekit_characteristic_t led_on = HOMEKIT_CHARACTERISTIC_(ON, false, .getter=led_on_get, .setter=led_on_set);
-homekit_characteristic_t temp_on = HOMEKIT_CHARACTERISTIC_(CURRENT_TEMPERATURE, 0.00, .getter=temp_on_get);
-
-void led_update() {
-	if (led_power) {
-   printf("ON\n");
-   digitalWrite(PIN_LED, LOW);
-	} else {
-		printf("OFF\n");
-		digitalWrite(PIN_LED, HIGH);
-	}
-}
-
-void led_toggle() {
-	led_on.value.bool_value = !led_on.value.bool_value;
-	led_on.setter(led_on.value);
-	homekit_characteristic_notify(&led_on, led_on.value);
-}
 
 void accessory_identify(homekit_value_t _value) {
-	printf("accessory identify\n");
-	for (int j = 0; j < 3; j++) {
-		led_power = true;
-		led_update();
-		delay(100);
-		led_power = false;
-		led_update();
-		delay(100);
-	}
+
 }
 
 homekit_service_t** svc;
@@ -83,17 +37,16 @@ homekit_server_config_t config = {
 		.setupId = "ABCD"
 };
 
-//homekit_value_t on_get() {
-//  return HOMEKIT_FLOAT_CPP(30.0);
-//}
-
 homekit_characteristic_t* addCT(char* name, homekit_value_t (*f)) {
   uint8_t i = 0;
   while (svc[i] != NULL) i++;
   homekit_service_t** t = realloc(svc, sizeof(homekit_service_t*) * (i + 2));
   if (!t) return NULL;
   svc = t;
-  homekit_characteristic_t temp = HOMEKIT_CHARACTERISTIC_(CURRENT_TEMPERATURE, 0.00, .getter=f);
+  //homekit_characteristic_t temp = HOMEKIT_CHARACTERISTIC_(CURRENT_TEMPERATURE, 0.00, .getter=f);
+  homekit_characteristic_t temp = HOMEKIT_CHARACTERISTIC_(CURRENT_TEMPERATURE, 0.00);
+  *temp.min_value = -200;
+  *temp.max_value = 200;
   homekit_characteristic_t* temp_on = homekit_characteristic_clone(&temp);  
   svc[i] = NEW_HOMEKIT_SERVICE(TEMPERATURE_SENSOR, .primary=true,
               .characteristics=(homekit_characteristic_t*[]){
@@ -105,13 +58,51 @@ homekit_characteristic_t* addCT(char* name, homekit_value_t (*f)) {
   return temp_on;
 }
 
-homekit_characteristic_t* addON(char* name, homekit_value_t (*g), void (*s(homekit_value_t))) {
+homekit_characteristic_t* addTT(char* name, homekit_characteristic_t** ch,
+                                            void (*s2)(homekit_value_t), homekit_characteristic_t** ch2,
+                                            homekit_characteristic_t** ch3,
+                                            void (*s4)(homekit_value_t), homekit_characteristic_t** ch4) {
   uint8_t i = 0;
   while (svc[i] != NULL) i++;
   homekit_service_t** t = realloc(svc, sizeof(homekit_service_t*) * (i + 2));
   if (!t) return NULL;
   svc = t;
-  homekit_characteristic_t temp = HOMEKIT_CHARACTERISTIC_(ON, false, .getter=g, .setter=s);
+  homekit_characteristic_t t1 = HOMEKIT_CHARACTERISTIC_(CURRENT_TEMPERATURE, 0.00);
+  homekit_characteristic_t t2 = HOMEKIT_CHARACTERISTIC_(TARGET_TEMPERATURE, 0.00, .setter=s2);
+  homekit_characteristic_t h1 = HOMEKIT_CHARACTERISTIC_(CURRENT_HEATING_COOLING_STATE, 0);
+  homekit_characteristic_t h2 = HOMEKIT_CHARACTERISTIC_(TARGET_HEATING_COOLING_STATE, 0, .setter=s4);
+  homekit_characteristic_t u = HOMEKIT_CHARACTERISTIC_(TEMPERATURE_DISPLAY_UNITS, 0); 
+  homekit_characteristic_t* temp1 = homekit_characteristic_clone(&t1);  
+  homekit_characteristic_t* temp2 = homekit_characteristic_clone(&t2);
+  homekit_characteristic_t* heat1 = homekit_characteristic_clone(&h1);
+  homekit_characteristic_t* heat2 = homekit_characteristic_clone(&h2);
+  homekit_characteristic_t* units = homekit_characteristic_clone(&u);
+  *ch = temp1;
+  *ch2 = temp2;
+  *ch3 = heat1;
+  *ch4 = heat2;
+  svc[i] = NEW_HOMEKIT_SERVICE(THERMOSTAT,// .primary=true,
+              .characteristics=(homekit_characteristic_t*[]){
+                NEW_HOMEKIT_CHARACTERISTIC(NAME, name),
+                temp1,
+                temp2,
+                heat1,
+                heat2,
+                units,
+                NULL
+              });
+  svc[i + 1] = NULL;
+  return NULL;
+}
+
+homekit_characteristic_t* addON(char* name, void (*s(homekit_value_t))) {
+  uint8_t i = 0;
+  while (svc[i] != NULL) i++;
+  homekit_service_t** t = realloc(svc, sizeof(homekit_service_t*) * (i + 2));
+  if (!t) return NULL;
+  svc = t;
+  //homekit_characteristic_t temp = HOMEKIT_CHARACTERISTIC_(ON, false, .getter=g, .setter=s);
+  homekit_characteristic_t temp = HOMEKIT_CHARACTERISTIC_(ON, false, .setter=s);
   homekit_characteristic_t* temp_on = homekit_characteristic_clone(&temp);  
   svc[i] = NEW_HOMEKIT_SERVICE(LIGHTBULB, .primary=true,
               .characteristics=(homekit_characteristic_t*[]){
@@ -135,23 +126,8 @@ void service_init() {
                 NEW_HOMEKIT_CHARACTERISTIC(IDENTIFY, accessory_identify),
                 NULL
               });
-/*
-  svc[1] =        NEW_HOMEKIT_SERVICE(LIGHTBULB, .primary=true,
-              .characteristics=(homekit_characteristic_t*[]){
-                  NEW_HOMEKIT_CHARACTERISTIC(NAME, "Led"),
-                  &led_on,
-                 NULL
-              });
-              
-  svc[2] =        NEW_HOMEKIT_SERVICE(TEMPERATURE_SENSOR, .primary=true,
-              .characteristics=(homekit_characteristic_t*[]){
-                NEW_HOMEKIT_CHARACTERISTIC(NAME, "Temperature"),
-                &temp_on,
-                NULL
-              });
-*/
   svc[1] =        NULL;
-  addON("Led", led_on_get, led_on_set);
+  //addON("Led", led_on_get, led_on_set);
   //addCT("Temperature", on_get);
 }
 void accessory_init() {
@@ -160,7 +136,4 @@ void accessory_init() {
             .category = homekit_accessory_category_lightbulb,
             .services=svc);
   accessories[1] =    NULL;
-
-	pinMode(PIN_LED, OUTPUT);
-	led_update();
 }
