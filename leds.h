@@ -3,19 +3,23 @@
 // (c)2019, a.m.emelianov@gmail.com
 
 #pragma once
-#include <Shell.h>
 #include <LoginShell.h>
+#include <Shell.h>
 extern LoginShell shell;
 
 #include <NeoPixelBus.h>
 
-const uint16_t PixelCount = 10; // this example assumes 4 pixels, making it smaller will cause a failure
-const uint8_t PixelPin = 3;  // make sure to set this to the correct pin, ignored for Esp8266
+const uint16_t PixelCount =
+    180;  // this example assumes 4 pixels, making it smaller will cause a failure
+const uint8_t PixelPin =
+    3;  // make sure to set this to the correct pin, ignored for Esp8266
 
 // These two are the same as above as the DMA method is the default
 // NOTE: These will ignore the PIN and use GPI03 (D9) pin
-NeoPixelBus<NeoGrbFeature, NeoEsp8266Dma800KbpsMethod> strip(PixelCount, PixelPin);
-//NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod> strip(PixelCount, PixelPin);
+NeoPixelBus<NeoGrbFeature, NeoEsp8266Dma800KbpsMethod> strip(PixelCount,
+                                                             PixelPin);
+// NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod> strip(PixelCount,
+// PixelPin);
 
 RgbColor useColor(20);
 
@@ -31,42 +35,53 @@ void ledColor(Shell &shell, int argc, const ShellArguments &argv) {
         useColor.R = atoi(argv[1]);
         useColor.G = atoi(argv[2]);
         useColor.B = atoi(argv[3]);
+    } else if (argc == 3) {
+        if (argv[1][0] == 'r' || argv[1][0] == 'R') {
+            useColor.R = atoi(argv[2]);
+        } else if (argv[1][0] == 'g' || argv[1][0] == 'G') {
+            useColor.G = atoi(argv[2]);
+        } else if (argv[1][0] == 'b' || argv[1][0] == 'B') {
+            useColor.B = atoi(argv[2]);
+        }
     }
-    else if (argc == 3) {
-      if (argv[1][0] == 'r' || argv[1][0] == 'R') {
-        useColor.R = atoi(argv[2]);
-      }
-      else if (argv[1][0] == 'g' || argv[1][0] == 'G') {
-        useColor.G = atoi(argv[2]);
-      }
-      else if (argv[1][0] == 'b' || argv[1][0] == 'B') {
-        useColor.B = atoi(argv[2]);
-      }
-    }
-    shell.printf_P(PSTR("%d %d %d\n"),useColor.R, useColor.G, useColor.B);
+    shell.printf_P(PSTR("%d %d %d\n"), useColor.R, useColor.G, useColor.B);
 }
-ShellCommand(ledcolor, "[<R> <G> <B>]|[r <R>]|[g <G>]|[b <B>] - LED Set color to draw", ledColor);
+ShellCommand(ledcolor,
+             "[<R> <G> <B>]|[r <R>]|[g <G>]|[b <B>] - LED Set color to draw",
+             ledColor);
 
 void ledOn(Shell &shell, int argc, const ShellArguments &argv) {
     if (argc > 1) {
-        strip.SetPixelColor(atoi(argv[1]), useColor);
-        if (argc > 2 && strcmp(argv[2], "show") == 0)
-          strip.Show();
+        uint16_t c = atoi(argv[1]);
+        strip.SetPixelColor(c, useColor);
+        if (argc > 2) {
+          if (strcmp(argv[2], "show") == 0) {
+            strip.Show();
+            return;
+          }
+          uint16_t n = atoi(argv[2]);
+          for (uint16_t i = c; i < c + n; i++)
+            strip.SetPixelColor(i, useColor);
+          if (argc > 3 && strcmp(argv[3], "show") == 0)
+            strip.Show();
+        }
     }
 }
-ShellCommand(ledon, "<pos> [show]- LED Set pixel as position to color (on)", ledOn);
+ShellCommand(ledon, "<pos> [<count>] [show]- LED Set pixel as position to color (on)",
+             ledOn);
 
 void ledOff(Shell &shell, int argc, const ShellArguments &argv) {
     if (argc > 1) {
         RgbColor black(0);
         strip.SetPixelColor(atoi(argv[1]), black);
         if (argc > 2 && strcmp(argv[2], "show") == 0)
-          strip.Show();
+            strip.Show();
     }
 }
-ShellCommand(ledoff, "<pos> [show] - LED Set pixel as position to black (off)", ledOff);
+ShellCommand(ledoff, "<pos> [show] - LED Set pixel as position to black (off)",
+             ledOff);
 
 void ledShow(Shell &shell, int argc, const ShellArguments &argv) {
-  strip.Show();
+    strip.Show();
 }
 ShellCommand(ledshow, " - LED Refresh leds", ledShow);

@@ -27,11 +27,13 @@ extern "C" homekit_characteristic_t* addTT(char* name, homekit_characteristic_t*
                                             void (*s2)(homekit_value_t), homekit_characteristic_t** ch2,
                                             homekit_characteristic_t** ch3,
                                             void (*s4)(homekit_value_t), homekit_characteristic_t** ch4);
+extern "C" homekit_characteristic_t* addMotion(char* name);
 
 struct hk_map_t {
   TAddress reg = IREG(0);
-  int8_t shift = 1;
+  int8_t shift = 0;
   homekit_characteristic_t* ch = NULL;
+  bool setterActing = false;
 };
 
 hk_map_t hkMap[HOMEKIT_MAX_DEV];
@@ -43,6 +45,7 @@ float shift10(float t, int8_t s) {
     t /= 10;
     s--;
   }
+  Serial.printf("Shift: %f\n", t);
   return t;
 }
 
@@ -56,48 +59,39 @@ int unshift10(float t, int8_t s) {
     t = 32768;
   else if (t < -32767)
     t -32767;
+  Serial.printf("Unshift: %f\n", t);
   return t;
 }
 
-template <int N>
-homekit_value_t temp_on_get() {
-  int16_t t = 0;
-  switch (hkMap[N].reg.type) {
-  case TAddress::HREG:
-    t = mb->Hreg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
-  case TAddress::IREG:
-    t = mb->Ireg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
-  case TAddress::COIL:
-    return HOMEKIT_BOOL_CPP(mb->Coil(hkMap[N].reg.address));
-  case TAddress::ISTS:
-    return HOMEKIT_BOOL_CPP(mb->Ists(hkMap[N].reg.address));
+uint16_t assign(hk_map_t* m, homekit_value_t v) {
+  uint16_t r = 0;
+  switch (v.format) {
+  case homekit_format_bool:
+    m->ch->value = HOMEKIT_BOOL_CPP(v.bool_value);
+    r = v.bool_value;
+  break;
+  case homekit_format_float:
+    m->ch->value = HOMEKIT_FLOAT_CPP(v.float_value);
+    r = unshift10(v.float_value, m->shift);
+  break;
+  case homekit_format_int:
+  case homekit_format_uint16:
+    m->ch->value = HOMEKIT_INT_CPP(v.int_value);
+    r = v.int_value;
+  break;
+  case homekit_format_uint8:
+    m->ch->value = HOMEKIT_UINT8_CPP(v.uint8_value);
+    r = v.uint8_value;
+  break;
   }
-  return HOMEKIT_NULL_CPP();
-}
-
-template <int N>
-homekit_value_t int_on_get() {
-  int16_t t = 0;
-  switch (hkMap[N].reg.type) {
-  case TAddress::HREG:
-    t = mb->Hreg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
-  case TAddress::IREG:
-    t = mb->Ireg(hkMap[N].reg.address);
-    return HOMEKIT_FLOAT_CPP(shift10((int16_t)t, hkMap[N].shift));
-  case TAddress::COIL:
-    return HOMEKIT_BOOL_(mb->Coil(hkMap[N].reg.address));
-  case TAddress::ISTS:
-    return HOMEKIT_BOOL_CPP(mb->Ists(hkMap[N].reg.address));
-  }
-  return HOMEKIT_NULL_CPP();
+  return r;
 }
 
 template <int N>
 void temp_on_set(homekit_value_t v) {
   int16_t r = 0;
+  //mb->cbDisable();
+  hkMap[N].setterActing = true;
   switch (hkMap[N].reg.type) {
   case TAddress::COIL:
     if (v.format != homekit_format_bool) return;
@@ -110,60 +104,14 @@ void temp_on_set(homekit_value_t v) {
     mb->Ists(hkMap[N].reg.address, v.bool_value);
   break;
   case TAddress::IREG:
-    if (v.format == homekit_format_bool) {
-      hkMap[N].ch->value = HOMEKIT_BOOL_CPP(v.bool_value);
-      r = v.bool_value;
-    }
-    else if (v.format == homekit_format_float) {
-      //int8_t s = 
-      r = unshift10(v.float_value, hkMap[N].shift);
-    }
-    else if (v.format == homekit_format_int) {
-      r = v.int_value;
-      hkMap[N].ch->value = HOMEKIT_INT_CPP(v.int_value);
-    }
-    else
-      break;
-    mb->Ists(hkMap[N].reg.address, r);
-  break;
+    mb->Ireg(hkMap[N].reg.address, assign(&hkMap[N], v));
+    break;
   case TAddress::HREG:
-    if (v.format == homekit_format_bool) {
-      r = v.bool_value;
-      hkMap[N].ch->value = HOMEKIT_BOOL_CPP(v.bool_value);
-    }
-    else if (v.format == homekit_format_float) {
-      r = unshift10(v.float_value, hkMap[N].shift);
-    }
-    else if (v.format == homekit_format_int) {
-      r = v.int_value;
-      hkMap[N].ch->value = HOMEKIT_INT_CPP(v.int_value);
-    }
-    else
-      break;
-    mb->Hreg(hkMap[N].reg.address, r);
-  break;
+    mb->Hreg(hkMap[N].reg.address, assign(&hkMap[N], v));
+    break;
   }
-}
-
-hkGetter hkMapGetter(uint8_t idx) {
-  switch (idx) {
-  case 0:
-    return temp_on_get<0>;
-  case 1:
-    return temp_on_get<1>;
-  case 2:
-    return temp_on_get<2>;
-  case 3:
-    return temp_on_get<3>;
-  case 4:
-    return temp_on_get<4>;
-  case 5:
-    return temp_on_get<5>;
-  case 6:
-    return temp_on_get<6>;
-  case 7:
-    return temp_on_get<7>;
-  }
+  hkMap[N].setterActing = false;
+  //mb->cbEnable();
 }
 
 hkSetter hkMapSetter(uint8_t idx) {
@@ -193,8 +141,27 @@ uint16_t onRegInteger(TRegister* reg, uint16_t val) {
   uint8_t i;
   for (i = 0; i < HOMEKIT_MAX_DEV && hkMap[i].reg != reg->address; i++) ; // Find HomeKit mapping
   if (i >= HOMEKIT_MAX_DEV || !hkMap[i].ch) return val; // Skip if not found or no characteristic in mapping
-  hkMap[i].ch->value = HOMEKIT_INT_CPP((int16_t)val);
-  homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_INT_CPP((int16_t)val));
+  if (hkMap[i].setterActing) return val; // Do nothing if called from setter
+  switch (hkMap[i].ch->value.format) {
+    case homekit_format_bool:
+      hkMap[i].ch->value = HOMEKIT_BOOL_CPP(val);
+    break;
+    case homekit_format_float:
+      hkMap[i].ch->value = HOMEKIT_FLOAT_CPP(unshift10(val, hkMap[i].shift));
+    break;
+    case homekit_format_int:
+    case homekit_format_uint16:
+      hkMap[i].ch->value = HOMEKIT_INT_CPP(val);
+    break;
+    case homekit_format_uint8:
+      hkMap[i].ch->value = HOMEKIT_UINT8_CPP(val);
+    break;
+    default:
+      return val; 
+  }
+  //hkMap[i].ch->value = HOMEKIT_INT_CPP((int16_t)val);
+  homekit_characteristic_notify(hkMap[i].ch, hkMap[i].ch->value);
+  Serial.println(val);
   return val;
 }
 
@@ -204,9 +171,9 @@ uint16_t onIreg(TRegister* reg, uint16_t val) {
   uint8_t i;
   for (i = 0; i < HOMEKIT_MAX_DEV && hkMap[i].reg != reg->address; i++) ; // Find HomeKit mapping
   if (i >= HOMEKIT_MAX_DEV || !hkMap[i].ch) return val; // Skip if not found or no characteristic in mapping
+  if (hkMap[i].setterActing) return val; // Do nothing if called from setter
   hkMap[i].ch->value.float_value = shift10((int16_t)val, hkMap[i].shift);
   homekit_characteristic_notify(hkMap[i].ch, hkMap[i].ch->value);
-  //homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_FLOAT_CPP(shift10((int16_t)val, hkMap[i].shift)));
   return val;
 }
 
@@ -221,6 +188,11 @@ bool addT(char* name, uint16_t ireg, int8_t shift = 1) {
   return true;
 }
 
+// reg = start reg
+// ireg = current temperature
+// hreg = target tempetrature
+// ireg + 1 = current mode
+// hreg + 1 = target mode 
 bool addThermostat(char* name, uint16_t reg, int8_t shift = 1) {
   if (hkMapCount >= HOMEKIT_MAX_DEV) return false;
   if (!mb->addIreg(reg)) return false;
@@ -238,9 +210,9 @@ bool addThermostat(char* name, uint16_t reg, int8_t shift = 1) {
   hkMap[hkMapCount + 1].shift = shift;
   reg++;
   hkMap[hkMapCount + 2].reg = IREG(reg);  // Current Mode
-  hkMap[hkMapCount + 2].shift = shift;
+  hkMap[hkMapCount + 2].shift = 0;
   hkMap[hkMapCount + 3].reg = HREG(reg);  // Target Mode
-  hkMap[hkMapCount + 3].shift = shift;
+  hkMap[hkMapCount + 3].shift = 0;
 
   addTT(name, &hkMap[hkMapCount].ch,
               hkMapSetter(hkMapCount + 1), &hkMap[hkMapCount + 1].ch,
@@ -260,6 +232,16 @@ uint16_t onCoil(TRegister* reg, uint16_t val) {
   return val;
 }
 
+uint16_t onIsts(TRegister* reg, uint16_t val) {
+  if (mb->Ists(reg->address.address) == val) return val; // Skip if no change
+  uint8_t i;
+  for (i = 0; i < HOMEKIT_MAX_DEV && hkMap[i].reg != reg->address; i++) ; // Find HomeKit mapping
+  if (i >= HOMEKIT_MAX_DEV || !hkMap[i].ch) return val; // Skip if not found or no characteristic in mapping
+  //homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_BOOL_CPP(ISTS_BOOL(val)));
+  homekit_characteristic_notify(hkMap[i].ch, HOMEKIT_UINT8_CPP(ISTS_BOOL(val)));
+  return val;
+}
+
 bool addO(char* name, uint16_t coil, int8_t shift = 1) {
   if (hkMapCount >= HOMEKIT_MAX_DEV) return false;
   if (!mb->addCoil(coil)) return false;
@@ -267,6 +249,17 @@ bool addO(char* name, uint16_t coil, int8_t shift = 1) {
   hkMap[hkMapCount].reg = COIL(coil);
   hkMap[hkMapCount].shift = shift;
   hkMap[hkMapCount].ch = addON(name, hkMapSetter(hkMapCount));
+  hkMapCount++;
+  return true;
+}
+
+bool addM(char* name, uint16_t ists) {
+  if (hkMapCount >= HOMEKIT_MAX_DEV) return false;
+  if (!mb->addIsts(ists)) return false;
+  mb->onSetIsts(ists, onIsts);
+  hkMap[hkMapCount].reg = ISTS(ists);
+  hkMap[hkMapCount].shift = 0;
+  hkMap[hkMapCount].ch = addMotion(name);
   hkMapCount++;
   return true;
 }
@@ -288,7 +281,8 @@ uint32_t homekitInit() {
   //addON("Led", led_on_get, led_on_set);
   //addT("Temperature", 1);
   readHomekit();
-  //addThermostat("Heater", 10, 2);
+  addThermostat("Heater", 10, 2);
+  addM("Motion", 30);
   accessory_init();
   uint8_t mac[WL_MAC_ADDR_LENGTH];
   WiFi.macAddress(mac);
